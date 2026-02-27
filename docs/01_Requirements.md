@@ -400,7 +400,8 @@
 ```json
 {
   "error_code": "AUTH_001",
-  "message": "이메일 형식이 올바르지 않습니다"
+  "message": "이메일 형식이 올바르지 않습니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -408,7 +409,8 @@
 ```json
 {
   "error_code": "AUTH_002",
-  "message": "비밀번호는 8자 이상이어야 합니다"
+  "message": "비밀번호는 8자 이상이어야 합니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -416,7 +418,8 @@
 ```json
 {
   "error_code": "AUTH_003",
-  "message": "이미 가입된 이메일입니다"
+  "message": "이미 가입된 이메일입니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -452,7 +455,8 @@
 ```json
 {
   "error_code": "AUTH_004",
-  "message": "이메일 또는 비밀번호가 잘못되었습니다"
+  "message": "이메일 또는 비밀번호가 잘못되었습니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -483,7 +487,8 @@ Authorization: Bearer {access_token}
 ```json
 {
   "error_code": "AUTH_005",
-  "message": "로그인이 필요합니다"
+  "message": "로그인이 필요합니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -491,7 +496,8 @@ Authorization: Bearer {access_token}
 ```json
 {
   "error_code": "AUTH_006",
-  "message": "토큰이 만료되었습니다"
+  "message": "토큰이 만료되었습니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -540,7 +546,8 @@ Authorization: Bearer {access_token}
 ```json
 {
   "error_code": "PROFILE_001",
-  "message": "최소 1개 이상의 질환을 선택해주세요"
+  "message": "최소 1개 이상의 질환을 선택해주세요",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -606,7 +613,8 @@ Authorization: Bearer {access_token}
 ```json
 {
   "error_code": "PROFILE_002",
-  "message": "올바른 용량 형식이 아닙니다 (예: 500mg)"
+  "message": "올바른 용량 형식이 아닙니다 (예: 500mg)",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -654,6 +662,9 @@ Authorization: Bearer {access_token}
 }
 ```
 ---
+### 2.2.5 약물 검색 (공통)
+
+> 프로필 입력(온보딩)과 OCR 결과 수정 시 공통으로 사용됩니다.
 
 #### GET /api/medications/search
 
@@ -687,7 +698,8 @@ Authorization: Bearer {access_token}
 ```json
 {
   "error_code": "MEDICATION_001",
-  "message": "검색어를 입력해주세요"
+  "message": "검색어를 입력해주세요",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -743,7 +755,8 @@ file: [이미지 파일]
 ```json
 {
   "error_code": "OCR_001",
-  "message": "이미지 용량은 10MB 이하여야 합니다"
+  "message": "이미지 용량은 10MB 이하여야 합니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -751,7 +764,8 @@ file: [이미지 파일]
 ```json
 {
   "error_code": "OCR_002",
-  "message": "JPEG 또는 PNG 파일만 가능합니다"
+  "message": "JPEG 또는 PNG 파일만 가능합니다",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -759,7 +773,8 @@ file: [이미지 파일]
 ```json
 {
   "error_code": "OCR_003",
-  "message": "인식 실패. 직접 입력해주세요"
+  "message": "인식 실패. 직접 입력해주세요",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -831,10 +846,13 @@ Authorization: Bearer {access_token}
 ```json
 {
   "ocr_result_id": 123,
-  "target_area": "knee",
-  "surgery_date": "2026-02-01"
+  "target_area": "knee",        // 선택 (없으면 재활 플랜 미생성)
+  "surgery_date": "2026-02-01"  // 선택 (없으면 재활 플랜 미생성)
 }
 ```
+※ target_area, surgery_date는 선택 필드입니다.
+   - 두 필드 모두 없으면 약물 상호작용 분석만 수행합니다.
+   - 두 필드 중 하나만 있으면 ANALYSIS_002 에러를 반환합니다.
 
 **Response (202 Accepted):**
 ```json
@@ -939,7 +957,8 @@ Authorization: Bearer {access_token}
   ],
   "rehab_plan": {
     "plan_id": 101,
-    "target_area": "무릎",
+    "target_area": "knee",        // DB 저장값 (영문)
+    "target_area_display": "무릎", // 화면 표시용 (한글)
     "duration_weeks": 4,
     "goal": "무릎 가동범위 120도 회복",
     "exercises": [
@@ -990,10 +1009,14 @@ Authorization: Bearer {access_token}
 **Response (201 Created):**
 ```json
 {
-  "session_id": "session-abc-123",
+  "id": 1,
+  "user_id": 1,
+  "related_guide_id": 789,
   "context_type": "guide_result",
   "context_id": 789,
-  "created_at": "2026-02-25T11:00:00Z"
+  "session_status": "active",
+  "started_at": "2026-02-25T11:00:00Z",
+  "ended_at": null
 }
 ```
 
@@ -1019,7 +1042,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "message_id": "msg-abc-123",
-  "session_id": "session-abc-123",
+  "session_id": 1,
   "role": "assistant",
   "content": "이부프로펜은 어지러움을 유발할 수 있습니다.\n골다공증 환자분께서는 낙상 위험이 높으므로,\n약 복용 후 30분간은 운동을 피하시고,\n바닥에 앉아서 하는 운동(큐세팅)을 권장합니다.\n\n⚠️ 정확한 진단은 의사와 상담하세요.",
   "created_at": "2026-02-25T11:01:00Z",
@@ -1033,7 +1056,8 @@ Authorization: Bearer {access_token}
 ```json
 {
   "error_code": "LLM_001",
-  "message": "분석 중 오류 발생. 다시 시도해주세요"
+  "message": "분석 중 오류 발생. 다시 시도해주세요",
+  "timestamp": "2026-02-25T10:30:00Z"
 }
 ```
 
@@ -1062,6 +1086,25 @@ Authorization: Bearer {access_token}
 }
 ```
 
+**Error Responses:**
+
+**400 Bad Request (잘못된 피드백 값):**
+```json
+{
+  "error_code": "CHAT_006",
+  "message": "올바른 피드백 값이 아닙니다",
+  "timestamp": "2026-02-25T10:30:00Z"
+}
+```
+**404 Not Found (메시지 없음):**
+```json
+{
+  "error_code": "CHAT_004",
+  "message": "메시지를 찾을 수 없습니다",
+  "timestamp": "2026-02-25T10:30:00Z"
+}
+```
+
 ---
 
 #### GET /api/chat/sessions/{session_id}/messages
@@ -1076,7 +1119,7 @@ Authorization: Bearer {access_token}
 **Response (200 OK):**
 ```json
 {
-  "session_id": "session-abc-123",
+  "session_id": 1,
   "messages": [
     {
       "message_id": "msg-001",
@@ -1161,14 +1204,16 @@ Authorization: Bearer {access_token}
       "created_at": "2026-02-25T10:30:00Z",
       "medication_count": 5,
       "interaction_count": 2,
-      "target_area": "무릎"
+      "target_area": "knee",
+      "target_area_display": "무릎"
     },
     {
       "guide_result_id": 788,
       "created_at": "2026-02-20T14:20:00Z",
       "medication_count": 4,
       "interaction_count": 1,
-      "target_area": "손목"
+      "target_area": "wrist",
+      "target_area_display": "손목"
     }
   ]
 }
@@ -1682,34 +1727,36 @@ Authorization: Bearer {access_token}
 
 **구현 예시 (React):**
 ```javascript
-const [pollCount, setPollCount] = useState(0);
+const pollCountRef = useRef(0);
 const MAX_POLL_COUNT = 20;
 
 useEffect(() => {
+  pollCountRef.current = 0; // taskId 바뀔 때 초기화
+
   const interval = setInterval(async () => {
-    if (pollCount >= MAX_POLL_COUNT) {
+    pollCountRef.current += 1;
+
+    if (pollCountRef.current >= MAX_POLL_COUNT) {
       clearInterval(interval);
       setError('분석 시간이 초과되었습니다. 다시 시도해주세요.');
       return;
     }
 
     const status = await fetchAnalysisStatus(taskId);
-    
+
     if (status.status === 'completed') {
       clearInterval(interval);
       navigate(`/analysis/results/${status.guide_result_id}`);
     } else if (status.status === 'failed') {
       clearInterval(interval);
       setError(status.message);
-    } else if (pollCount === 10) {
+    } else if (pollCountRef.current === 10) {
       setMessage('분석이 지연되고 있습니다. 조금만 더 기다려주세요.');
     }
-
-    setPollCount(prev => prev + 1);
   }, 3000);
 
   return () => clearInterval(interval);
-}, [pollCount, taskId]);
+}, [taskId]); // pollCount 의존성 제거
 ```
 
 ---
@@ -1893,6 +1940,8 @@ useEffect(() => {
 **필수 요소:**
 - [ ] 목표 표시 (상단)
 - [ ] 주차별 탭 (1~4주차)
+- [ ] 수술 부위는 target_area_display(한글) 값으로 표시
+      (예: target_area="knee" → 화면에는 "무릎" 표시)
 - [ ] 2단 그리드 레이아웃 (운동 카드)
 - [ ] 각 카드: 운동명, 세트/횟수, 태그, 주의사항
 - [ ] 영상 보기 버튼 → 새 탭에서 유튜브
@@ -2039,6 +2088,7 @@ useEffect(() => {
 
 **필수 요소:**
 - [ ] 테이블 레이아웃 (날짜, 약물 개수, 상호작용, 부위, 상세)
+   - (부위 컬럼은 target_area_display(한글) 값으로 표시)
 - [ ] 최신순 정렬
 - [ ] 상호작용 건수에 따른 색상 (안전: 초록, 주의: 노랑, 위험: 빨강)
 - [ ] 보기 버튼 → 상세 페이지로 이동
