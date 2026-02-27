@@ -1,38 +1,52 @@
-import os
-import uuid
-import zoneinfo
-from dataclasses import field
-from enum import StrEnum
-from pathlib import Path
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
+from functools import lru_cache
 
 
-class Env(StrEnum):
-    LOCAL = "local"
-    DEV = "dev"
-    PROD = "prod"
+class Settings(BaseSettings):
+    # App
+    app_env: str = "development"
+    secret_key: str = "change-me"
+    debug: bool = True
+
+    # PostgreSQL
+    postgres_user: str = "ai_health_user"
+    postgres_password: str = "ai_health_pass"
+    postgres_db: str = "ai_health_db"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+
+    # Redis
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+
+    # OpenAI
+    openai_api_key: str = ""
+
+    # Naver Clova OCR
+    clova_ocr_secret: str = ""
+    clova_ocr_apigw_url: str = ""
+
+    # Mock 설정
+    use_mock_ocr: bool = False
+    use_mock_analysis: bool = True
+    use_mock_chat: bool = True  # ← 추가
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+    @property
+    def database_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
+    def redis_url(self) -> str:
+        return f"redis://{self.redis_host}:{self.redis_port}"
 
 
-class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
-
-    ENV: Env = Env.LOCAL
-    SECRET_KEY: str = f"default-secret-key{uuid.uuid4().hex}"
-    TIMEZONE: zoneinfo.ZoneInfo = field(default_factory=lambda: zoneinfo.ZoneInfo("Asia/Seoul"))
-    TEMPLATE_DIR: str = os.path.join(Path(__file__).resolve().parent.parent, "templates")
-
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 3306
-    DB_USER: str = "root"
-    DB_PASSWORD: str = "pw1234"
-    DB_NAME: str = "ai_health"
-    DB_CONNECT_TIMEOUT: int = 5
-    DB_CONNECTION_POOL_MAXSIZE: int = 10
-
-    COOKIE_DOMAIN: str = "localhost"
-
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 14 * 24 * 60
-    JWT_LEEWAY: int = 5
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
