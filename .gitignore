@@ -12,3 +12,6 @@ wheels/
 .coverage
 *.coverage
 .coverage.*
+_OLD/
+uploads/
+test.jpg
