@@ -448,7 +448,7 @@ ALTER TABLE medications
 -- "스트레칭" 태그가 있는 무릎 운동 검색
 SELECT * FROM exercise_library
 WHERE category = '무릎'
-  AND 'ス트レ칭' = ANY(tags);
+  AND '스트레칭' = ANY(tags);
 ```
 ---
 
@@ -655,7 +655,7 @@ CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read, crea
 -- 필수 입력 필드
 users: email, password_hash, name, birth_date, gender
 chronic_conditions: user_id, condition_type
-medications: user_id, medication_name, medication_type
+medications: user_id, medication_name, dosage, frequency, medication_type
 ocr_results: document_id, processing_status
 guide_results: user_id
 ```
@@ -685,11 +685,11 @@ ALTER TABLE guide_results ADD CONSTRAINT chk_safety_score CHECK (overall_safety_
 
 ```sql
 INSERT INTO exercise_library (exercise_id, name, target_area, difficulty, contraindications, video_url, tags) VALUES
-('knee01', '큐세팅', '무릎', 'low', '{}', '<https://youtube.com/>...', '{"diabetes_safe", "hypertension_safe", "osteoporosis_safe"}'),
-('knee02', 'SLR (다리 들기)', '무릎', 'medium', '{"급성통증"}', '<https://youtube.com/>...', '{"diabetes_safe", "hypertension_safe"}'),
-('knee03', '미니 스쿼트', '무릎', 'medium', '{"골다공증", "급성통증"}', '<https://youtube.com/>...', '{"diabetes_safe"}'),
-('back01', '맥켄지 신전', '허리', 'medium', '{"척추협착증"}', '<https://youtube.com/>...', '{"diabetes_safe"}'),
-('back02', '고양이-소 자세', '허리', 'low', '{}', '<https://youtube.com/>...', '{"diabetes_safe", "hypertension_safe", "osteoporosis_safe"}');
+('knee01', '큐세팅', '무릎', 'low', ARRAY[]::text[], 'https://youtube.com/...', ARRAY['diabetes_safe', 'hypertension_safe', 'osteoporosis_safe']),
+('knee02', 'SLR (다리 들기)', '무릎', 'medium', ARRAY['급성통증'], 'https://youtube.com/...', ARRAY['diabetes_safe', 'hypertension_safe']),
+('knee03', '미니 스쿼트', '무릎', 'medium', ARRAY['골다공증', '급성통증'], 'https://youtube.com/...', ARRAY['diabetes_safe']),
+('back01', '맥켄지 신전', '허리', 'medium', ARRAY['척추협착증'], 'https://youtube.com/...', ARRAY['diabetes_safe']),
+('back02', '고양이-소 자세', '허리', 'low', ARRAY[]::text[], 'https://youtube.com/...', ARRAY['diabetes_safe', 'hypertension_safe', 'osteoporosis_safe']);
 -- ... 총 30개
 ```
 
@@ -737,4 +737,4 @@ notifications: 100건 (선택 기능)
 총 레코드 수: ~1,400건
 ```
 
----_
+---
