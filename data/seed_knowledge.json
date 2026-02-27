@@ -1,0 +1,482 @@
+[
+  {
+    "id": "drug_001",
+    "category": "drug_interaction",
+    "title": "메트포르민 + 이부프로펜 상호작용",
+    "content": "메트포르민과 이부프로펜(NSAIDs)을 함께 복용하면 신장 기능 저하 위험이 증가합니다. 이부프로펜은 신장 혈류를 감소시켜 메트포르민 배출을 방해하고, 심한 경우 젖산산증(Lactic Acidosis)을 유발할 수 있습니다. 특히 65세 이상 고령 환자, 신장 질환 기왕력이 있는 환자는 각별히 주의해야 합니다. 복용 중에는 정기적으로 신장 기능 검사(크레아티닌, eGFR)를 확인하고, 충분한 수분 섭취가 필요합니다.",
+    "tags": ["metformin", "ibuprofen", "kidney", "diabetes", "NSAID", "lactic_acidosis"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_002",
+    "category": "drug_interaction",
+    "title": "암로디핀 + 이부프로펜 상호작용",
+    "content": "칼슘 채널 차단제인 암로디핀과 이부프로펜을 함께 복용하면 혈압 강하 효과가 감소할 수 있습니다. NSAIDs는 나트륨과 수분 저류를 유발하여 혈압을 높이고, 항고혈압제의 효과를 방해합니다. 고혈압 환자가 정형외과 치료 후 이부프로펜을 처방받은 경우, 혈압 모니터링을 더 자주 해야 합니다. 가능하면 아세트아미노펜(타이레놀)으로 대체를 고려하세요.",
+    "tags": ["amlodipine", "ibuprofen", "hypertension", "blood_pressure", "NSAID", "calcium_channel_blocker"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_003",
+    "category": "drug_interaction",
+    "title": "아토르바스타틴 + 에리스로마이신 상호작용",
+    "content": "고지혈증 치료제인 아토르바스타틴과 항생제 에리스로마이신을 함께 복용하면 근육 독성(횡문근융해증) 위험이 크게 증가합니다. 에리스로마이신이 CYP3A4 효소를 억제하여 아토르바스타틴 혈중 농도를 높이기 때문입니다. 근육통, 갈색 소변이 나타나면 즉시 복용을 중단하고 의사에게 연락하세요.",
+    "tags": ["atorvastatin", "erythromycin", "rhabdomyolysis", "CYP3A4", "statin", "antibiotic"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_004",
+    "category": "drug_interaction",
+    "title": "알렌드로네이트 + 칼슘제 복용 간격",
+    "content": "골다공증 치료제 알렌드로네이트(포사맥스)는 칼슘제, 제산제, 철분제와 동시에 복용하면 흡수가 크게 방해됩니다. 알렌드로네이트는 반드시 아침 공복에 물 한 컵(200ml 이상)과 함께 복용하고, 복용 후 최소 30분간 눕지 말아야 합니다. 칼슘제는 알렌드로네이트 복용 후 최소 2시간 이후에 복용해야 합니다.",
+    "tags": ["alendronate", "calcium", "osteoporosis", "absorption", "timing", "bisphosphonate"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_005",
+    "category": "drug_interaction",
+    "title": "트라마돌 + 에스시탈로프람 상호작용 (세로토닌 증후군)",
+    "content": "진통제 트라마돌과 항우울제(SSRI) 에스시탈로프람을 함께 복용하면 세로토닌 증후군 위험이 있습니다. 증상으로는 발열, 발한, 빠른 심박수, 근육 경직, 혼란이 나타날 수 있습니다. 두 약물을 함께 처방받은 경우 의사에게 반드시 알리고, 이상 증상 발생 시 즉시 응급실을 방문하세요.",
+    "tags": ["tramadol", "escitalopram", "serotonin_syndrome", "SSRI", "opioid", "antidepressant"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_006",
+    "category": "drug_interaction",
+    "title": "가바펜틴 + 트라마돌 상호작용 (중추신경 억제)",
+    "content": "신경통 치료제 가바펜틴과 진통제 트라마돌을 함께 복용하면 중추신경 억제 효과가 증폭됩니다. 심한 졸음, 어지러움, 호흡 억제가 나타날 수 있습니다. 두 약물을 함께 복용하는 경우 운전이나 기계 조작은 절대 피해야 합니다. 낙상 위험이 크게 증가하므로 특히 고령 환자는 주의가 필요합니다.",
+    "tags": ["gabapentin", "tramadol", "CNS_depression", "drowsiness", "fall_risk", "elderly"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_007",
+    "category": "drug_interaction",
+    "title": "에페리손 + 알코올 상호작용",
+    "content": "근이완제 에페리손은 알코올과 함께 복용하면 중추신경 억제 효과가 증폭되어 심한 졸음과 어지러움이 나타납니다. 에페리손 복용 중에는 음주를 삼가야 하며, 운전이나 집중력이 필요한 작업을 피해야 합니다. 고령 환자는 낙상 위험이 높아지므로 특별히 주의하세요.",
+    "tags": ["eperisone", "alcohol", "muscle_relaxant", "drowsiness", "fall_risk"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_008",
+    "category": "drug_interaction",
+    "title": "셀레콕시브 + 와파린 상호작용",
+    "content": "COX-2 억제제 셀레콕시브와 항응고제 와파린을 함께 복용하면 출혈 위험이 증가합니다. 셀레콕시브가 와파린의 대사를 억제하여 혈중 농도를 높이기 때문입니다. 두 약물을 함께 복용하는 경우 INR 수치를 더 자주 모니터링해야 하며, 비정상적인 출혈(잇몸 출혈, 멍, 혈변)이 나타나면 즉시 의사에게 알리세요.",
+    "tags": ["celecoxib", "warfarin", "bleeding", "anticoagulant", "COX2", "INR"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_009",
+    "category": "drug_interaction",
+    "title": "스테로이드(트리암시놀론) + 메트포르민 상호작용",
+    "content": "관절 내 스테로이드 주사(트리암시놀론)는 혈당을 일시적으로 크게 상승시킵니다. 당뇨 환자는 주사 후 24~72시간 동안 혈당이 평소보다 50~100mg/dL 이상 높아질 수 있습니다. 주사 후 혈당 모니터링 빈도를 늘리고, 메트포르민 용량 조절이 필요할 수 있으므로 내분비내과 주치의에게 반드시 알리세요.",
+    "tags": ["triamcinolone", "metformin", "steroid", "blood_glucose", "diabetes", "injection"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_010",
+    "category": "drug_interaction",
+    "title": "이부프로펜 + 아스피린 상호작용",
+    "content": "이부프로펜과 저용량 아스피린(심혈관 예방 목적)을 함께 복용하면 아스피린의 혈소판 억제 효과가 감소합니다. 이부프로펜이 아스피린보다 먼저 COX-1 효소에 결합하기 때문입니다. 심혈관 질환 예방을 위해 아스피린을 복용 중이라면, 이부프로펜 대신 아세트아미노펜 사용을 고려하세요.",
+    "tags": ["ibuprofen", "aspirin", "platelet", "cardiovascular", "COX1", "NSAID"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_011",
+    "category": "drug_interaction",
+    "title": "텔미사르탄 + 이부프로펜 상호작용",
+    "content": "ARB 계열 항고혈압제 텔미사르탄과 이부프로펜을 함께 복용하면 신장 기능 저하 위험이 증가합니다. 이 조합은 '이중 레닌-안지오텐신 차단'으로 신장 혈류를 크게 감소시킬 수 있습니다. 혈압 조절 효과도 감소하므로, 진통제가 필요한 경우 아세트아미노펜으로 대체를 권장합니다.",
+    "tags": ["telmisartan", "ibuprofen", "ARB", "kidney", "hypertension", "NSAID"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_012",
+    "category": "drug_interaction",
+    "title": "칼슘제 + 철분제 복용 간격",
+    "content": "칼슘제와 철분제를 동시에 복용하면 서로의 흡수를 방해합니다. 두 약물은 최소 2시간 이상 간격을 두고 복용해야 합니다. 일반적으로 철분제는 공복에, 칼슘제는 식사와 함께 복용하는 것이 흡수에 유리합니다. 골다공증과 빈혈을 동시에 치료하는 환자는 복용 시간을 명확히 구분해야 합니다.",
+    "tags": ["calcium", "iron", "absorption", "osteoporosis", "anemia", "timing"],
+    "severity": "low"
+  },
+  {
+    "id": "drug_013",
+    "category": "drug_interaction",
+    "title": "트라마돌 + 벤조디아제핀 상호작용",
+    "content": "진통제 트라마돌과 수면제/항불안제(벤조디아제핀 계열: 알프라졸람, 디아제팜 등)를 함께 복용하면 호흡 억제 위험이 크게 증가합니다. 특히 고령 환자나 폐 질환이 있는 환자에서 위험합니다. 두 약물을 함께 복용해야 하는 경우 최소 용량을 사용하고, 졸음이나 호흡 곤란이 나타나면 즉시 의사에게 연락하세요.",
+    "tags": ["tramadol", "benzodiazepine", "respiratory_depression", "opioid", "sedative", "elderly"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_014",
+    "category": "drug_interaction",
+    "title": "메트포르민 + 조영제 상호작용",
+    "content": "MRI나 CT 검사에 사용하는 요오드 조영제와 메트포르민을 함께 사용하면 젖산산증 위험이 있습니다. 조영제 검사 전 48시간 전부터 메트포르민 복용을 중단하고, 검사 후 신장 기능이 정상임을 확인한 후 재복용해야 합니다. 정형외과 수술 전 영상 검사가 필요한 경우 내분비내과 주치의에게 반드시 알리세요.",
+    "tags": ["metformin", "contrast_dye", "lactic_acidosis", "imaging", "diabetes", "kidney"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_015",
+    "category": "drug_interaction",
+    "title": "가바펜틴 + 제산제 상호작용",
+    "content": "신경통 치료제 가바펜틴과 제산제(마그네슘/알루미늄 함유)를 함께 복용하면 가바펜틴 흡수가 20~30% 감소합니다. 제산제는 가바펜틴 복용 후 최소 2시간 이후에 복용해야 합니다. 위장 보호 목적으로 제산제를 함께 처방받은 경우 복용 순서와 간격을 지키는 것이 중요합니다.",
+    "tags": ["gabapentin", "antacid", "absorption", "magnesium", "aluminum", "timing"],
+    "severity": "low"
+  },
+  {
+    "id": "drug_016",
+    "category": "drug_interaction",
+    "title": "셀레콕시브 + 리튬 상호작용",
+    "content": "COX-2 억제제 셀레콕시브는 리튬의 신장 배출을 감소시켜 혈중 리튬 농도를 높입니다. 리튬 독성 증상(손 떨림, 구역질, 혼란, 경련)이 나타날 수 있습니다. 리튬을 복용 중인 환자에게 셀레콕시브를 처방하는 경우 리튬 혈중 농도 모니터링이 필요합니다.",
+    "tags": ["celecoxib", "lithium", "toxicity", "COX2", "kidney", "monitoring"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_017",
+    "category": "drug_interaction",
+    "title": "인슐린 + 이부프로펜 상호작용",
+    "content": "인슐린을 사용하는 당뇨 환자가 이부프로펜을 복용하면 저혈당 위험이 증가할 수 있습니다. 이부프로펜이 신장 기능에 영향을 주어 인슐린 배출을 늦추기 때문입니다. 또한 이부프로펜 자체가 혈당 강하 효과를 일부 가질 수 있습니다. 인슐린 사용 중 이부프로펜 복용 시 혈당 모니터링 빈도를 늘리세요.",
+    "tags": ["insulin", "ibuprofen", "hypoglycemia", "diabetes", "NSAID", "blood_glucose"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_018",
+    "category": "drug_interaction",
+    "title": "알렌드로네이트 + 이부프로펜 상호작용 (위장관 독성)",
+    "content": "알렌드로네이트는 자체적으로 식도와 위 점막을 자극합니다. 이부프로펜 등 NSAIDs와 함께 복용하면 위장관 궤양, 출혈 위험이 크게 증가합니다. 두 약물을 함께 복용해야 하는 경우 위장 보호제(프로톤 펌프 억제제, 예: 오메프라졸)를 함께 처방받는 것이 권장됩니다.",
+    "tags": ["alendronate", "ibuprofen", "GI_bleeding", "ulcer", "osteoporosis", "NSAID"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_019",
+    "category": "drug_interaction",
+    "title": "암로디핀 + 자몽 주스 상호작용",
+    "content": "자몽 주스는 CYP3A4 효소를 억제하여 암로디핀의 혈중 농도를 높입니다. 이로 인해 혈압이 과도하게 낮아지거나 어지러움, 두통이 심해질 수 있습니다. 암로디핀 복용 중에는 자몽 주스를 피하고, 일반 오렌지 주스나 물로 대체하세요.",
+    "tags": ["amlodipine", "grapefruit", "CYP3A4", "hypertension", "drug_food_interaction"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_020",
+    "category": "drug_interaction",
+    "title": "트라마돌 + MAO 억제제 상호작용",
+    "content": "진통제 트라마돌과 MAO 억제제(항우울제 일부)를 함께 복용하면 세로토닌 증후군과 경련 위험이 매우 높습니다. MAO 억제제 복용 중이거나 중단 후 14일 이내에는 트라마돌을 절대 복용해서는 안 됩니다. 정신과 약물을 복용 중인 경우 정형외과 처방 시 반드시 알려야 합니다.",
+    "tags": ["tramadol", "MAOI", "serotonin_syndrome", "seizure", "contraindicated"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_021",
+    "category": "drug_interaction",
+    "title": "메트포르민 + 알코올 상호작용",
+    "content": "메트포르민 복용 중 과도한 음주는 젖산산증 위험을 크게 높입니다. 알코올이 간에서 젖산 생성을 증가시키고, 메트포르민과 상호작용하여 젖산이 축적될 수 있습니다. 메트포르민 복용 중에는 음주를 삼가거나 최소화해야 합니다. 수술 전후에는 특히 금주가 필요합니다.",
+    "tags": ["metformin", "alcohol", "lactic_acidosis", "diabetes", "liver"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_022",
+    "category": "drug_interaction",
+    "title": "란소프라졸 + 클로피도그렐 상호작용",
+    "content": "위장 보호제 란소프라졸(PPI)과 항혈소판제 클로피도그렐을 함께 복용하면 클로피도그렐의 효과가 감소할 수 있습니다. 란소프라졸이 CYP2C19 효소를 억제하여 클로피도그렐 활성화를 방해하기 때문입니다. 심혈관 질환으로 클로피도그렐을 복용 중인 경우, PPI 선택 시 판토프라졸이 상대적으로 안전합니다.",
+    "tags": ["lansoprazole", "clopidogrel", "CYP2C19", "PPI", "antiplatelet", "cardiovascular"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_023",
+    "category": "drug_interaction",
+    "title": "가바펜틴 + 오피오이드 상호작용",
+    "content": "가바펜틴과 오피오이드 계열 진통제(트라마돌, 옥시코돈 등)를 함께 복용하면 호흡 억제 위험이 증가합니다. 특히 고령 환자, 수면 무호흡증 환자에서 위험합니다. 두 약물을 함께 처방받은 경우 최저 유효 용량을 사용하고, 졸음이나 호흡 곤란이 심해지면 즉시 의사에게 연락하세요.",
+    "tags": ["gabapentin", "opioid", "respiratory_depression", "tramadol", "sleep_apnea", "elderly"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_024",
+    "category": "drug_interaction",
+    "title": "비타민 D + 티아지드 이뇨제 상호작용",
+    "content": "고용량 비타민 D와 티아지드 이뇨제(히드로클로로티아지드)를 함께 복용하면 고칼슘혈증 위험이 있습니다. 티아지드 이뇨제가 신장에서 칼슘 재흡수를 증가시키고, 비타민 D가 장에서 칼슘 흡수를 높이기 때문입니다. 구역질, 변비, 피로감, 혼란이 나타나면 혈중 칼슘 수치를 확인하세요.",
+    "tags": ["vitamin_D", "thiazide", "hypercalcemia", "calcium", "diuretic", "osteoporosis"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_025",
+    "category": "drug_interaction",
+    "title": "아토르바스타틴 + 이트라코나졸 상호작용",
+    "content": "스타틴 계열 아토르바스타틴과 항진균제 이트라코나졸을 함께 복용하면 근육 독성(횡문근융해증) 위험이 크게 증가합니다. 이트라코나졸이 CYP3A4를 강하게 억제하여 아토르바스타틴 혈중 농도를 10배 이상 높일 수 있습니다. 항진균제 치료가 필요한 경우 아토르바스타틴을 일시 중단하는 것을 고려하세요.",
+    "tags": ["atorvastatin", "itraconazole", "rhabdomyolysis", "CYP3A4", "statin", "antifungal"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_026",
+    "category": "drug_interaction",
+    "title": "셀레콕시브 + 스테로이드 상호작용",
+    "content": "셀레콕시브와 경구 스테로이드를 함께 복용하면 위장관 궤양과 출혈 위험이 크게 증가합니다. 두 약물 모두 위 점막을 손상시키는 효과가 있어 상가 작용을 합니다. 이 조합을 사용해야 하는 경우 반드시 위장 보호제(PPI)를 함께 복용해야 합니다.",
+    "tags": ["celecoxib", "steroid", "GI_bleeding", "ulcer", "COX2", "corticosteroid"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_027",
+    "category": "drug_interaction",
+    "title": "암로디핀 + 심바스타틴 상호작용",
+    "content": "칼슘 채널 차단제 암로디핀과 심바스타틴을 함께 복용하면 심바스타틴 혈중 농도가 높아져 근육 독성 위험이 증가합니다. 암로디핀이 CYP3A4 효소를 부분적으로 억제하기 때문입니다. 두 약물을 함께 복용하는 경우 심바스타틴 용량은 20mg 이하로 제한하는 것이 권장됩니다.",
+    "tags": ["amlodipine", "simvastatin", "myopathy", "CYP3A4", "statin", "calcium_channel_blocker"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_028",
+    "category": "drug_interaction",
+    "title": "트라마돌 + 카르바마제핀 상호작용",
+    "content": "진통제 트라마돌과 항경련제 카르바마제핀을 함께 복용하면 트라마돌의 진통 효과가 감소하고 경련 역치가 낮아집니다. 카르바마제핀이 CYP3A4를 유도하여 트라마돌 대사를 촉진하고, 동시에 경련 유발 위험을 높입니다. 간질 병력이 있는 환자는 트라마돌 사용을 피하는 것이 권장됩니다.",
+    "tags": ["tramadol", "carbamazepine", "seizure", "CYP3A4", "anticonvulsant", "opioid"],
+    "severity": "high"
+  },
+  {
+    "id": "drug_029",
+    "category": "drug_interaction",
+    "title": "메트포르민 + 시메티딘 상호작용",
+    "content": "위궤양 치료제 시메티딘(H2 차단제)은 신장에서 메트포르민 배출을 억제하여 메트포르민 혈중 농도를 약 40% 높입니다. 이로 인해 젖산산증 위험이 증가할 수 있습니다. 위장 보호가 필요한 경우 시메티딘보다 파모티딘이나 PPI 계열을 선택하는 것이 안전합니다.",
+    "tags": ["metformin", "cimetidine", "lactic_acidosis", "H2_blocker", "diabetes", "kidney"],
+    "severity": "medium"
+  },
+  {
+    "id": "drug_030",
+    "category": "drug_interaction",
+    "title": "이부프로펜 + 리튬 상호작용",
+    "content": "이부프로펜은 신장에서 리튬 배출을 감소시켜 혈중 리튬 농도를 25~60% 높입니다. 리튬 독성 증상인 손 떨림, 구역질, 설사, 혼란, 경련이 나타날 수 있습니다. 리튬을 복용 중인 환자에게는 이부프로펜 대신 아세트아미노펜 사용이 권장됩니다. 불가피하게 사용하는 경우 리튬 혈중 농도를 자주 모니터링해야 합니다.",
+    "tags": ["ibuprofen", "lithium", "toxicity", "NSAID", "kidney", "monitoring"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_001",
+    "category": "rehab_guide",
+    "title": "당뇨 환자의 재활 운동 주의사항",
+    "content": "당뇨 환자는 상처 회복이 느리고 말초 신경 감각이 저하되어 있을 수 있습니다. 운동 전후 혈당을 반드시 체크하고(목표: 100~250mg/dL), 저혈당 예방을 위해 운동 전 간식을 준비하세요. 발에 상처가 생기지 않도록 쿠션이 충분한 운동화를 착용하고, 운동 후 발을 꼼꼼히 확인해야 합니다. 저혈당 증상(어지러움, 식은땀, 손 떨림)이 나타나면 즉시 운동을 중단하고 당분을 섭취하세요.",
+    "tags": ["diabetes", "rehabilitation", "wound_healing", "blood_glucose", "foot_care", "hypoglycemia"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_002",
+    "category": "rehab_guide",
+    "title": "고혈압 환자의 재활 운동 주의사항",
+    "content": "고혈압 환자는 운동 중 혈압이 과도하게 상승하지 않도록 주의해야 합니다. 발살바 호흡법(숨을 참고 힘을 주는 동작)은 절대 금지입니다. 운동 강도는 '약간 힘들다' 수준(Borg 척도 12~14)을 유지하고, 운동 전 혈압이 180/110mmHg 이상이면 운동을 중단하세요. 준비운동과 마무리 운동을 각 10분씩 충분히 실시하여 혈압의 급격한 변화를 예방하세요.",
+    "tags": ["hypertension", "rehabilitation", "blood_pressure", "valsalva", "exercise_intensity"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_003",
+    "category": "rehab_guide",
+    "title": "골다공증 환자의 재활 운동 주의사항",
+    "content": "골다공증 환자는 낙상으로 인한 골절 위험이 매우 높습니다. 점프, 달리기, 급격한 방향 전환 등 충격이 강한 운동은 피해야 합니다. 척추를 앞으로 구부리는 동작(허리 굽히기, 윗몸 일으키기)은 척추 압박골절 위험이 있어 제외합니다. 균형 훈련과 하체 근력 강화 운동을 중심으로 실시하고, 미끄럽지 않은 바닥에서 운동하세요. 운동 시 보조 도구(지팡이, 의자)를 적극 활용하세요.",
+    "tags": ["osteoporosis", "rehabilitation", "fall_prevention", "fracture", "balance", "spine"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_004",
+    "category": "rehab_guide",
+    "title": "무릎 수술 후 1주차 재활 가이드",
+    "content": "수술 후 1주차는 부종과 통증 조절이 최우선입니다. 하루 4~6회 15~20분씩 얼음찜질을 실시하고, 가능하면 다리를 심장보다 높게 올려두세요. 큐세팅, 발목 펌핑, SLR 등 침대에서 할 수 있는 저강도 운동을 시작합니다. 보조기구(목발, 워커)를 사용하여 체중 부하를 조절하세요. 통증이 심하면 운동을 중단하고 담당 의사에게 연락하세요.",
+    "tags": ["knee", "post_surgery", "week1", "swelling", "pain_management", "ice_therapy"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_005",
+    "category": "rehab_guide",
+    "title": "무릎 수술 후 2~4주차 재활 가이드",
+    "content": "2~4주차에는 무릎 가동범위 회복이 목표입니다. 앉아서 무릎 굽히기/펴기 운동을 통해 점진적으로 범위를 늘려갑니다. 수영장 보행(수중 운동)이 가능하다면 관절 부담 없이 근력 회복에 도움이 됩니다. 미니 스쿼트(30도 이내)를 조심스럽게 시작할 수 있습니다. 목표 가동범위: 2주차 90도, 4주차 120도.",
+    "tags": ["knee", "post_surgery", "week2_4", "range_of_motion", "aquatic_therapy", "mini_squat"],
+    "severity": "medium"
+  },
+  {
+    "id": "rehab_006",
+    "category": "rehab_guide",
+    "title": "허리 시술 후 재활 가이드 (신경차단술)",
+    "content": "신경차단술 후 24~48시간은 안정을 취하고 무거운 물건을 들지 마세요. 시술 부위 감염 증상(발열, 발적, 분비물)이 나타나면 즉시 병원을 방문하세요. 2~3일 후부터 걷기 운동을 시작하고, 1주일 후 골반 기울이기, 무릎 가슴 당기기 등 가벼운 스트레칭을 시작합니다. 허리를 앞으로 급격히 구부리거나 비트는 동작은 4주간 피하세요.",
+    "tags": ["back", "nerve_block", "post_procedure", "walking", "stretching", "infection"],
+    "severity": "medium"
+  },
+  {
+    "id": "rehab_007",
+    "category": "rehab_guide",
+    "title": "손목 골절 수술 후 재활 가이드",
+    "content": "손목 골절 수술 후 석고 고정 기간(4~6주) 동안 손가락 굽히기/펴기 운동으로 손가락 강직을 예방하세요. 석고 제거 후에는 손목 굽히기/펴기, 돌리기 운동을 통증 없는 범위에서 시작합니다. 부종 감소를 위해 손을 심장보다 높게 유지하고, 얼음찜질을 실시하세요. 골다공증 환자는 반대쪽 손목 골절 예방을 위해 낙상 방지에 특히 주의하세요.",
+    "tags": ["wrist", "fracture", "post_surgery", "finger_exercise", "swelling", "osteoporosis"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_008",
+    "category": "rehab_guide",
+    "title": "어깨 수술 후 재활 가이드",
+    "content": "어깨 수술 후 2~4주는 보조기(슬링)를 착용하고 팔을 고정합니다. 이 기간 동안 진자 운동과 손가락/손목 운동으로 혈액순환을 유지하세요. 4~6주부터 어깨 으쓱하기, 벽 기어오르기를 시작합니다. 팔을 뒤로 젖히거나 머리 위로 올리는 동작은 의사 허가 전까지 금지입니다. 수술 후 6주 이내에 무거운 물건(1kg 이상)을 들지 마세요.",
+    "tags": ["shoulder", "post_surgery", "sling", "pendulum", "range_of_motion", "lifting"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_009",
+    "category": "rehab_guide",
+    "title": "당뇨 환자 무릎 관절염 운동 가이드",
+    "content": "당뇨를 동반한 무릎 관절염 환자는 체중 조절이 재활의 핵심입니다. 체중이 1kg 줄면 무릎 관절 부담이 약 4kg 감소합니다. 수중 운동, 자전거 타기(고정식), 수영이 관절에 부담이 적어 권장됩니다. 운동 중 혈당 변화에 주의하고, 발에 굳은살이나 상처가 생기지 않도록 쿠션 좋은 신발을 착용하세요.",
+    "tags": ["diabetes", "knee", "osteoarthritis", "weight_management", "aquatic_exercise", "foot_care"],
+    "severity": "medium"
+  },
+  {
+    "id": "rehab_010",
+    "category": "rehab_guide",
+    "title": "골다공증 환자 무릎 수술 후 낙상 예방",
+    "content": "골다공증 환자는 무릎 수술 후 낙상으로 인한 2차 골절 위험이 매우 높습니다. 집 안 환경 개선이 필수입니다: 욕실 미끄럼 방지 매트, 침대 옆 야간 조명, 계단 손잡이 설치를 권장합니다. 기립성 저혈압(갑자기 일어날 때 어지러움)에 주의하고, 일어날 때 천천히 단계적으로 자세를 바꾸세요. 시력 교정이 필요한 경우 안경이나 렌즈를 착용하세요.",
+    "tags": ["osteoporosis", "knee", "fall_prevention", "home_safety", "orthostatic_hypotension", "secondary_fracture"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_011",
+    "category": "rehab_guide",
+    "title": "고혈압 환자 허리 재활 운동 가이드",
+    "content": "고혈압 환자의 허리 재활은 혈압 모니터링과 병행해야 합니다. 운동 전 혈압을 측정하고, 수축기 혈압이 160mmHg 이상이면 운동을 연기하세요. 숨을 참는 동작(플랭크 장시간 유지, 무거운 중량 운동)은 피합니다. 걷기, 수영, 자전거 등 유산소 운동은 혈압 조절과 허리 근력 강화에 동시에 도움이 됩니다. 운동 중 두통, 흉통, 어지러움이 나타나면 즉시 중단하세요.",
+    "tags": ["hypertension", "back", "blood_pressure_monitoring", "aerobic_exercise", "contraindicated_movements"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_012",
+    "category": "rehab_guide",
+    "title": "스테로이드 주사 후 재활 가이드",
+    "content": "관절 내 스테로이드 주사 후 24~48시간은 주사 부위 안정을 취하세요. 주사 후 일시적으로 통증이 심해질 수 있으나(스테로이드 플레어) 1~2일 내에 호전됩니다. 당뇨 환자는 주사 후 3~5일간 혈당이 크게 상승할 수 있으므로 혈당 모니터링을 강화하세요. 주사 효과가 나타나는 3~7일 후부터 재활 운동을 시작하는 것이 적절합니다.",
+    "tags": ["steroid_injection", "rehabilitation", "diabetes", "blood_glucose", "steroid_flare", "timing"],
+    "severity": "medium"
+  },
+  {
+    "id": "rehab_013",
+    "category": "rehab_guide",
+    "title": "무릎 인공관절 수술 후 재활 가이드",
+    "content": "인공관절 수술 후 재활은 수술 당일 또는 다음 날부터 시작합니다. 1주차: 침대에서 발목 펌핑, 큐세팅, SLR 실시. 2주차: 보행 훈련(워커 사용), 앉아서 무릎 굽히기. 4주차: 계단 오르기 연습(한 칸씩). 목표 가동범위: 퇴원 시 90도, 6주 후 120도. 인공관절 수명을 위해 달리기, 점프, 무릎 꿇기는 영구적으로 피해야 합니다.",
+    "tags": ["knee", "total_knee_replacement", "post_surgery", "range_of_motion", "walking", "long_term_care"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_014",
+    "category": "rehab_guide",
+    "title": "재활 운동 중 통증 평가 기준",
+    "content": "재활 운동 중 통증은 NRS(숫자 통증 척도) 0~10점으로 평가합니다. 0~3점(경미한 통증): 운동 지속 가능. 4~6점(중등도 통증): 운동 강도를 줄이거나 동작 범위를 축소. 7점 이상(심한 통증): 즉시 운동 중단 후 담당 의사에게 연락. 운동 후 2시간이 지나도 통증이 지속되거나 부종이 심해지면 운동 강도를 낮추세요.",
+    "tags": ["pain_assessment", "NRS", "rehabilitation", "exercise_guideline", "safety"],
+    "severity": "medium"
+  },
+  {
+    "id": "rehab_015",
+    "category": "rehab_guide",
+    "title": "재활 운동 전 준비운동 가이드",
+    "content": "본 운동 전 5~10분의 준비운동은 부상 예방에 필수입니다. 준비운동 순서: 1) 제자리 걷기 2~3분, 2) 목/어깨/허리 가벼운 돌리기, 3) 운동 부위 가벼운 스트레칭. 고혈압 환자는 준비운동이 혈압의 급격한 상승을 예방합니다. 당뇨 환자는 준비운동 전 혈당을 체크하세요. 준비운동 중 통증이 있으면 본 운동을 시작하지 마세요.",
+    "tags": ["warm_up", "injury_prevention", "rehabilitation", "diabetes", "hypertension", "safety"],
+    "severity": "low"
+  },
+  {
+    "id": "rehab_016",
+    "category": "rehab_guide",
+    "title": "골다공증 환자 어깨 재활 가이드",
+    "content": "골다공증 환자의 어깨 재활은 척추와 상지 골절 예방을 동시에 고려해야 합니다. 무거운 덤벨(1kg 이상) 사용은 피하고, 탄성 밴드나 자체 중량 운동을 활용하세요. 어깨를 과도하게 뒤로 젖히는 동작은 척추 압박골절 위험이 있어 주의가 필요합니다. 진자 운동, 어깨 으쓱하기, 벽 기어오르기 순서로 점진적으로 진행하세요.",
+    "tags": ["osteoporosis", "shoulder", "rehabilitation", "fracture_prevention", "resistance_band", "progressive"],
+    "severity": "medium"
+  },
+  {
+    "id": "rehab_017",
+    "category": "rehab_guide",
+    "title": "재활 운동 빈도와 휴식의 중요성",
+    "content": "재활 운동은 매일 하는 것보다 주 3~5회, 운동 사이에 충분한 휴식을 취하는 것이 효과적입니다. 근육과 관절은 운동 후 24~48시간의 회복 시간이 필요합니다. 당뇨 환자는 규칙적인 운동 일정이 혈당 조절에 도움이 됩니다. 운동 후 다음 날 통증이 심해지면 운동 강도를 줄이거나 휴식일을 늘리세요. 수면 중 통증이 있으면 반드시 의사에게 알리세요.",
+    "tags": ["exercise_frequency", "rest", "recovery", "diabetes", "pain_management", "rehabilitation"],
+    "severity": "low"
+  },
+  {
+    "id": "rehab_018",
+    "category": "rehab_guide",
+    "title": "수술 후 부종 관리 가이드",
+    "content": "수술 후 부종은 정상적인 치유 반응이지만 적절한 관리가 필요합니다. RICE 원칙을 따르세요: Rest(안정), Ice(얼음찜질 15~20분, 하루 4~6회), Compression(압박 붕대), Elevation(심장보다 높게 올리기). 부종이 심해지거나, 발열, 발적, 따뜻한 느낌이 동반되면 감염 가능성이 있으므로 즉시 병원을 방문하세요. 당뇨 환자는 상처 감염에 특히 취약하므로 주의하세요.",
+    "tags": ["swelling", "RICE", "post_surgery", "infection", "diabetes", "wound_care"],
+    "severity": "medium"
+  },
+  {
+    "id": "rehab_019",
+    "category": "rehab_guide",
+    "title": "고령 환자 재활 운동 특별 고려사항",
+    "content": "65세 이상 고령 환자는 근육량 감소(근감소증)와 균형 능력 저하로 재활 시 특별한 주의가 필요합니다. 운동 강도를 일반 성인의 60~70% 수준으로 시작하고 점진적으로 늘리세요. 복수의 만성질환과 다약제 복용(5가지 이상)으로 인한 부작용(어지러움, 저혈압)에 주의하세요. 균형 훈련(한 발 서기, 발뒤꿈치-발끝 걷기)을 매일 실시하여 낙상을 예방하세요. 가족이나 보호자와 함께 운동하는 것을 권장합니다.",
+    "tags": ["elderly", "sarcopenia", "balance", "polypharmacy", "fall_prevention", "rehabilitation"],
+    "severity": "high"
+  },
+  {
+    "id": "rehab_020",
+    "category": "rehab_guide",
+    "title": "재활 운동 진행 기준 (단계 상향 조건)",
+    "content": "다음 조건을 모두 충족할 때 다음 단계 운동으로 진행할 수 있습니다: 1) 현재 운동을 통증 없이 완료할 수 있을 것, 2) 운동 후 부종이나 통증이 증가하지 않을 것, 3) 담당 의사 또는 물리치료사의 허가를 받을 것. 단계를 서두르면 재손상 위험이 있습니다. '통증이 없다'는 것이 '완전히 회복됐다'는 의미가 아닙니다. 조직 치유에는 외관상 회복보다 더 긴 시간이 필요합니다.",
+    "tags": ["progression", "rehabilitation", "safety", "criteria", "re_injury", "healing"],
+    "severity": "medium"
+  },
+  {
+    "id": "chronic_001",
+    "category": "chronic_disease",
+    "title": "당뇨 환자의 수술 전후 혈당 관리",
+    "content": "수술 전 목표 혈당: 공복 80~180mg/dL, HbA1c 8% 미만. 혈당이 조절되지 않으면 수술 감염 위험이 3~5배 증가하고 상처 회복이 크게 지연됩니다. 수술 당일 아침 메트포르민은 복용하지 마세요(조영제 사용 가능성). 인슐린 용량은 수술 당일 주치의 지시에 따라 조절합니다. 수술 후 혈당 목표: 140~180mg/dL (너무 낮으면 저혈당 위험).",
+    "tags": ["diabetes", "surgery", "blood_glucose", "HbA1c", "metformin", "insulin", "wound_healing"],
+    "severity": "high"
+  },
+  {
+    "id": "chronic_002",
+    "category": "chronic_disease",
+    "title": "고혈압 환자의 수술 전후 혈압 관리",
+    "content": "수술 전 목표 혈압: 160/100mmHg 미만. 혈압이 조절되지 않으면 수술 중 심혈관 합병증 위험이 증가합니다. 항고혈압제는 수술 당일 아침에도 소량의 물과 함께 복용합니다(ACE 억제제, ARB는 수술 당일 중단 가능 - 의사 지시에 따름). 수술 후 혈압이 갑자기 오르면 통증, 불안, 방광 팽만이 원인일 수 있습니다. 퇴원 후 가정 혈압 측정을 매일 아침 실시하세요.",
+    "tags": ["hypertension", "surgery", "blood_pressure", "antihypertensive", "ACE_inhibitor", "ARB", "monitoring"],
+    "severity": "high"
+  },
+  {
+    "id": "chronic_003",
+    "category": "chronic_disease",
+    "title": "골다공증 환자의 골절 위험 평가",
+    "content": "FRAX 점수(10년 내 골절 위험도)가 높은 환자는 정형외과 치료 중 추가 골절에 각별히 주의해야 합니다. T-score -2.5 이하(골다공증)인 경우 가벼운 충격에도 골절이 발생할 수 있습니다. 비스포스포네이트(알렌드로네이트) 복용 중인 환자는 장기 복용(5년 이상) 시 비전형 대퇴골 골절 위험이 있으므로 정기적인 재평가가 필요합니다. 칼슘(1000~1200mg/일)과 비타민 D(800~1000IU/일) 보충을 유지하세요.",
+    "tags": ["osteoporosis", "FRAX", "fracture_risk", "T_score", "bisphosphonate", "calcium", "vitamin_D"],
+    "severity": "high"
+  },
+  {
+    "id": "chronic_004",
+    "category": "chronic_disease",
+    "title": "당뇨 환자의 발 관리 (당뇨발 예방)",
+    "content": "당뇨 환자는 말초 신경병증으로 발의 감각이 저하되어 상처를 인지하지 못할 수 있습니다. 매일 발을 꼼꼼히 확인하고(거울 사용), 발가락 사이도 살펴보세요. 맨발로 걷지 말고, 새 신발은 처음에 짧게 신어 물집을 예방하세요. 발톱은 일직선으로 자르고, 굳은살은 전문가에게 맡기세요. 발에 상처, 발적, 부종이 생기면 즉시 병원을 방문하세요(당뇨발 궤양은 빠른 치료가 중요).",
+    "tags": ["diabetes", "foot_care", "diabetic_neuropathy", "ulcer_prevention", "wound", "daily_check"],
+    "severity": "high"
+  },
+  {
+    "id": "chronic_005",
+    "category": "chronic_disease",
+    "title": "고혈압 환자의 가정 혈압 측정법",
+    "content": "가정 혈압 측정 표준 방법: 1) 측정 30분 전 카페인, 흡연, 운동 금지. 2) 5분간 안정 후 측정. 3) 등받이 있는 의자에 앉아 팔을 심장 높이에 올려놓기. 4) 1~2분 간격으로 2회 측정 후 평균값 기록. 5) 아침(기상 후 1시간 이내, 복약 전)과 저녁(취침 전) 측정. 가정 혈압 목표: 135/85mmHg 미만. 정형외과 치료 중 NSAIDs 복용 시 혈압이 상승할 수 있으므로 더 자주 측정하세요.",
+    "tags": ["hypertension", "home_blood_pressure", "measurement", "monitoring", "NSAID", "morning_measurement"],
+    "severity": "medium"
+  },
+  {
+    "id": "chronic_006",
+    "category": "chronic_disease",
+    "title": "골다공증 환자의 칼슘 및 비타민 D 복용 가이드",
+    "content": "칼슘 권장 섭취량: 50세 이상 1000~1200mg/일 (식이 + 보충제 합산). 칼슘 보충제는 한 번에 500mg 이하로 나누어 복용해야 흡수율이 높습니다. 탄산칼슘은 식사와 함께, 구연산칼슘은 공복에 복용 가능합니다. 비타민 D 권장량: 800~1000IU/일. 비타민 D는 칼슘 흡수를 도와주므로 함께 복용하는 것이 효과적입니다. 알렌드로네이트와 칼슘제는 최소 2시간 간격을 두고 복용하세요.",
+    "tags": ["osteoporosis", "calcium", "vitamin_D", "supplement", "absorption", "alendronate", "timing"],
+    "severity": "medium"
+  },
+  {
+    "id": "chronic_007",
+    "category": "chronic_disease",
+    "title": "당뇨 환자의 저혈당 응급 대처법",
+    "content": "저혈당 증상: 어지러움, 식은땀, 손 떨림, 두근거림, 배고픔, 두통, 시야 흐림. 혈당 70mg/dL 미만 또는 증상 발생 시: 즉시 빠른 당분 섭취 - 포도당 정제 15g, 주스 150ml, 사탕 3~4개 중 하나 선택. 15분 후 혈당 재측정, 여전히 낮으면 반복. 의식이 없는 경우 절대 음식을 먹이지 말고 즉시 119 호출. 재활 운동 중 저혈당 예방: 운동 전 혈당 100mg/dL 미만이면 간식 섭취 후 운동 시작.",
+    "tags": ["diabetes", "hypoglycemia", "emergency", "glucose", "rehabilitation", "blood_glucose_monitoring"],
+    "severity": "high"
+  },
+  {
+    "id": "chronic_008",
+    "category": "chronic_disease",
+    "title": "고혈압 환자의 고혈압 응급 증상 인식",
+    "content": "고혈압 응급 증상(즉시 119 호출): 혈압 180/120mmHg 이상 + 두통, 시야 장애, 흉통, 호흡 곤란, 한쪽 팔다리 마비, 말 어눌함 중 하나라도 동반 시. 재활 운동 중 갑자기 심한 두통, 어지러움, 흉통이 나타나면 즉시 운동 중단 후 혈압 측정. 정형외과 치료 중 NSAIDs 복용으로 혈압이 상승할 수 있으므로 주의하세요. 항고혈압제를 임의로 중단하지 마세요.",
+    "tags": ["hypertension", "hypertensive_emergency", "stroke", "chest_pain", "emergency", "NSAID"],
+    "severity": "high"
+  },
+  {
+    "id": "chronic_009",
+    "category": "chronic_disease",
+    "title": "골다공증 환자의 낙상 예방 가정 환경 개선",
+    "content": "낙상 위험 요소 제거 체크리스트: ✅ 욕실 미끄럼 방지 매트 설치, ✅ 욕조/화장실 손잡이 설치, ✅ 계단 양쪽 손잡이 확인, ✅ 바닥 전선/카펫 정리, ✅ 침대 높이 조절(너무 높거나 낮지 않게), ✅ 야간 조명 설치(침실→화장실 경로), ✅ 미끄럽지 않은 슬리퍼 착용. 약물로 인한 어지러움(이뇨제, 수면제, 진통제)이 낙상 위험을 높이므로 복용 약물을 의사에게 알리세요.",
+    "tags": ["osteoporosis", "fall_prevention", "home_safety", "bathroom", "medication_side_effects", "checklist"],
+    "severity": "high"
+  },
+  {
+    "id": "chronic_010",
+    "category": "chronic_disease",
+    "title": "만성질환자의 수술 후 퇴원 체크리스트",
+    "content": "퇴원 전 반드시 확인해야 할 사항: 1) 처방약 목록과 복용법 확인 (기존약 + 신규약 모두), 2) 상처 드레싱 방법 교육받기, 3) 응급 연락처 확인 (담당 의사, 응급실), 4) 다음 외래 날짜 확인, 5) 금지 활동 목록 확인 (운전, 목욕, 무거운 물건 들기), 6) 당뇨: 혈당 목표 범위 재확인, 7) 고혈압: 혈압 측정 일정 확인, 8) 골다공증: 낙상 예방 교육 확인. 퇴원 후 이상 증상(발열, 심한 통증, 상처 분비물)은 즉시 병원 방문.",
+    "tags": ["discharge", "checklist", "diabetes", "hypertension", "osteoporosis", "wound_care", "emergency_contact"],
+    "severity": "high"
+  }
+]
