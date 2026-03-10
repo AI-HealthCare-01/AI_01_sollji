@@ -45,8 +45,10 @@ export const uploadDocument = async (file: File) => {
 };
 
 // 2. AI 분석 요청 (백그라운드 시작)
-export const requestAnalysis = async (documentId: number) => {
-  const res = await apiClient.post(`/api/v1/analysis/${documentId}`);
+export const requestAnalysis = async (documentId: number, currentSymptom: string = "") => {
+  const res = await apiClient.post(`/api/v1/analysis/${documentId}`, {
+    current_symptom: currentSymptom,
+  });
   return res.data; // { guide_result_id, status: "processing" }
 };
 

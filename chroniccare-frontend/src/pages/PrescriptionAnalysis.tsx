@@ -28,6 +28,7 @@ export default function PrescriptionAnalysis() {
   const [error, setError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string | null>(null);
   const [guideResultId, setGuideResultId] = useState<number | null>(null);
+  const [currentSymptom, setCurrentSymptom] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -83,7 +84,7 @@ export default function PrescriptionAnalysis() {
     try {
       const uploadData = await uploadDocument(selectedFile);
       setOcrText(uploadData.extracted_text);
-      const analysisData = await requestAnalysis(uploadData.document_id);
+      const analysisData = await requestAnalysis(uploadData.document_id, currentSymptom);
       setGuideResultId(analysisData.guide_result_id);
       await pollStatus(analysisData.guide_result_id);
     } catch (err: unknown) {
@@ -133,6 +134,21 @@ export default function PrescriptionAnalysis() {
             <p className="text-gray-500 mt-1">
               처방전 이미지를 업로드하면 AI가 약물 정보와 생활 가이드를 분석해드려요.
             </p>
+          </div>
+
+          {/* 현재 증상/수술명 입력 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              현재 증상 또는 수술명 <span className="text-gray-400 font-normal">(선택)</span>
+            </label>
+            <input
+              type="text"
+              value={currentSymptom}
+              onChange={(e) => setCurrentSymptom(e.target.value)}
+              placeholder="예: 오른쪽 무릎 반월판 수술, 허리 디스크..."
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
           </div>
 
           {/* STEP 1: 업로드 */}
