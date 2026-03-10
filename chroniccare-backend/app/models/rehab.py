@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, TIMESTAMP, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Text, Boolean, TIMESTAMP, ForeignKey, Index, Date
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -57,6 +57,7 @@ class ExerciseCompletion(Base):
     rehab_exercise_id = Column(Integer, ForeignKey("rehab_exercises.id", ondelete="CASCADE"), nullable=False)
     rehab_plan_id = Column(Integer, ForeignKey("rehab_plans.id", ondelete="CASCADE"), nullable=False)
     completed_at = Column(TIMESTAMP, server_default=func.now())
+    completed_date = Column(Date, nullable=False, server_default=func.current_date())
     actual_sets = Column(Integer)
     actual_reps = Column(Integer)
     pain_level = Column(Integer)

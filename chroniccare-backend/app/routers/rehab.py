@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import date
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -19,9 +19,11 @@ router = APIRouter()
 class CompleteExerciseRequest(BaseModel):
     actual_sets: Optional[int] = None
     actual_reps: Optional[int] = None
-    pain_level: Optional[int] = None   # 0~10
+    pain_level: Optional[int] = None
     notes: Optional[str] = None
 
+class ToggleRequest(BaseModel):
+    date: Optional[date] = None
 
 # ── 1. 내 재활 플랜 목록 ──────────────────────────────────
 
@@ -108,130 +110,117 @@ async def get_rehab_plan_detail(
     }
 
 
-# ── 3. 운동 완료 기록 ─────────────────────────────────────
+# ── 3. 운동 완료 토글 ─────────────────────────────────────
 
 @router.post("/plans/{plan_id}/exercises/{rehab_exercise_id}/complete")
-async def complete_exercise(
-    plan_id: int,
-    rehab_exercise_id: int,
-    body: CompleteExerciseRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+async def toggle_exercise_complete(
+        plan_id: int,
+        rehab_exercise_id: int,
+        body: ToggleRequest = ToggleRequest(),
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
 ):
-    # 플랜 소유권 확인
-    plan_result = await db.execute(
-        select(RehabPlan).where(
-            RehabPlan.id == plan_id,
-            RehabPlan.user_id == current_user.id
+    target_date = body.date or date.today()  # ← 프론트에서 받은 날짜 사용
+
+    result = await db.execute(
+        select(ExerciseCompletion).where(
+            and_(
+                ExerciseCompletion.rehab_exercise_id == rehab_exercise_id,
+                ExerciseCompletion.user_id == current_user.id,
+                ExerciseCompletion.completed_date == target_date  # ← 수정
+            )
         )
     )
-    plan = plan_result.scalar_one_or_none()
-    if not plan:
-        raise HTTPException(status_code=404, detail="재활 플랜을 찾을 수 없습니다.")
+    existing = result.scalar_one_or_none()
 
-    # rehab_exercise 확인
-    ex_result = await db.execute(
-        select(RehabExercise).where(
-            RehabExercise.id == rehab_exercise_id,
-            RehabExercise.rehab_plan_id == plan_id
+    if existing:
+        await db.delete(existing)
+        await db.commit()
+        return {"status": "cancelled", "date": str(target_date)}
+    else:
+        completion = ExerciseCompletion(
+            user_id=current_user.id,
+            rehab_exercise_id=rehab_exercise_id,
+            rehab_plan_id=plan_id,
+            completed_date=target_date  # ← 수정
         )
-    )
-    rehab_ex = ex_result.scalar_one_or_none()
-    if not rehab_ex:
-        raise HTTPException(status_code=404, detail="운동 항목을 찾을 수 없습니다.")
-
-    # pain_level 범위 검증
-    if body.pain_level is not None and not (0 <= body.pain_level <= 10):
-        raise HTTPException(status_code=400, detail="pain_level은 0~10 사이여야 합니다.")
-
-    completion = ExerciseCompletion(
-        user_id=current_user.id,
-        rehab_exercise_id=rehab_exercise_id,
-        rehab_plan_id=plan_id,
-        actual_sets=body.actual_sets,
-        actual_reps=body.actual_reps,
-        pain_level=body.pain_level,
-        notes=body.notes,
-    )
-    db.add(completion)
-    await db.commit()
-    await db.refresh(completion)
-
-    return {
-        "message": "운동 완료가 기록되었습니다.",
-        "completion_id": completion.id,
-        "completed_at": completion.completed_at
-    }
+        db.add(completion)
+        await db.commit()
+        return {"status": "completed", "date": str(target_date)}
 
 
-# ── 4. 플랜 진행률 ────────────────────────────────────────
+# ── 4. 날짜별 진행률 조회 ─────────────────────────────────
 
 @router.get("/plans/{plan_id}/progress")
 async def get_plan_progress(
     plan_id: int,
+    target_date: date = date.today(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # 플랜 소유권 확인
-    plan_result = await db.execute(
+    total_result = await db.execute(
+        select(func.count(RehabExercise.id)).where(
+            RehabExercise.rehab_plan_id == plan_id
+        )
+    )
+    total = total_result.scalar() or 0
+
+    completed_result = await db.execute(
+        select(func.count(func.distinct(ExerciseCompletion.rehab_exercise_id))).where(
+            and_(
+                ExerciseCompletion.rehab_plan_id == plan_id,
+                ExerciseCompletion.user_id == current_user.id,
+                ExerciseCompletion.completed_date == target_date
+            )
+        )
+    )
+    completed = completed_result.scalar() or 0
+
+    completed_ids_result = await db.execute(
+        select(ExerciseCompletion.rehab_exercise_id).where(
+            and_(
+                ExerciseCompletion.rehab_plan_id == plan_id,
+                ExerciseCompletion.user_id == current_user.id,
+                ExerciseCompletion.completed_date == target_date
+            )
+        )
+    )
+    completed_ids = [row[0] for row in completed_ids_result.fetchall()]
+
+    return {
+        "date": str(target_date),
+        "total_exercises": total,
+        "completed_exercises": completed,
+        "progress_percent": round(completed / total * 100) if total > 0 else 0,
+        "completed_exercise_ids": completed_ids
+    }
+
+
+# ── 5. 재활 플랜 삭제 ────────────────────────
+
+@router.delete("/plans/{plan_id}")
+async def delete_rehab_plan(
+    plan_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
         select(RehabPlan).where(
             RehabPlan.id == plan_id,
             RehabPlan.user_id == current_user.id
         )
     )
-    plan = plan_result.scalar_one_or_none()
+    plan = result.scalar_one_or_none()
+
     if not plan:
         raise HTTPException(status_code=404, detail="재활 플랜을 찾을 수 없습니다.")
 
-    # 전체 운동 수
-    total_result = await db.execute(
-        select(func.count(RehabExercise.id))
-        .where(RehabExercise.rehab_plan_id == plan_id)
-    )
-    total = total_result.scalar() or 0
-
-    # 완료된 운동 수 (중복 제거 - 운동 항목 기준)
-    completed_result = await db.execute(
-        select(func.count(func.distinct(ExerciseCompletion.rehab_exercise_id)))
-        .where(
-            ExerciseCompletion.rehab_plan_id == plan_id,
-            ExerciseCompletion.user_id == current_user.id
-        )
-    )
-    completed = completed_result.scalar() or 0
-
-    # 최근 완료 기록 5개
-    recent_result = await db.execute(
-        select(ExerciseCompletion)
-        .where(
-            ExerciseCompletion.rehab_plan_id == plan_id,
-            ExerciseCompletion.user_id == current_user.id
-        )
-        .order_by(ExerciseCompletion.completed_at.desc())
-        .limit(5)
-    )
-    recent = recent_result.scalars().all()
-
-    return {
-        "plan_id": plan_id,
-        "total_exercises": total,
-        "completed_exercises": completed,
-        "progress_percent": round((completed / total * 100), 1) if total > 0 else 0,
-        "recent_completions": [
-            {
-                "completion_id": c.id,
-                "rehab_exercise_id": c.rehab_exercise_id,
-                "completed_at": c.completed_at,
-                "pain_level": c.pain_level,
-                "actual_sets": c.actual_sets,
-                "actual_reps": c.actual_reps,
-            }
-            for c in recent
-        ]
-    }
+    await db.delete(plan)
+    await db.commit()
+    return {"message": "재활 플랜이 삭제되었습니다.", "plan_id": plan_id}
 
 
-# ── 5. 운동 라이브러리 목록 ───────────────────────────────
+# ── 6. 운동 라이브러리 목록 ───────────────────────────────
 
 @router.get("/exercises")
 async def get_exercise_library(

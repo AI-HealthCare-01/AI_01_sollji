@@ -42,25 +42,57 @@ class MockRehabService(RehabServiceBase):
             duration_weeks=4,
             precautions="무릎에 과도한 하중을 피하세요. 통증이 심하면 즉시 중단하세요.",
             exercises=[
+                # ── 1주차 ──
                 {
                     "exercise_id": "knee01",
-                    "week_number": 1,
-                    "sequence_order": 1,
-                    "sets": 3,
-                    "reps": 10,
-                    "duration_seconds": None,
-                    "frequency_per_day": 2,
-                    "special_notes": "천천히 진행하세요."
+                    "week_number": 1, "sequence_order": 1,
+                    "sets": 3, "reps": 10, "duration_seconds": None,
+                    "frequency_per_day": 2, "special_notes": "천천히 진행하세요."
                 },
                 {
                     "exercise_id": "knee02",
-                    "week_number": 1,
-                    "sequence_order": 2,
-                    "sets": 3,
-                    "reps": 15,
-                    "duration_seconds": None,
-                    "frequency_per_day": 2,
-                    "special_notes": None
+                    "week_number": 1, "sequence_order": 2,
+                    "sets": 3, "reps": 15, "duration_seconds": None,
+                    "frequency_per_day": 2, "special_notes": None
+                },
+                # ── 2주차 ──
+                {
+                    "exercise_id": "knee01",
+                    "week_number": 2, "sequence_order": 1,
+                    "sets": 3, "reps": 15, "duration_seconds": None,
+                    "frequency_per_day": 2, "special_notes": "세트 사이 1분 휴식."
+                },
+                {
+                    "exercise_id": "knee02",
+                    "week_number": 2, "sequence_order": 2,
+                    "sets": 4, "reps": 15, "duration_seconds": None,
+                    "frequency_per_day": 2, "special_notes": None
+                },
+                # ── 3주차 ──
+                {
+                    "exercise_id": "knee01",
+                    "week_number": 3, "sequence_order": 1,
+                    "sets": 4, "reps": 20, "duration_seconds": None,
+                    "frequency_per_day": 2, "special_notes": "강도를 서서히 높이세요."
+                },
+                {
+                    "exercise_id": "knee02",
+                    "week_number": 3, "sequence_order": 2,
+                    "sets": 4, "reps": 20, "duration_seconds": None,
+                    "frequency_per_day": 2, "special_notes": None
+                },
+                # ── 4주차 ──
+                {
+                    "exercise_id": "knee01",
+                    "week_number": 4, "sequence_order": 1,
+                    "sets": 4, "reps": 20, "duration_seconds": None,
+                    "frequency_per_day": 3, "special_notes": "마무리 단계, 통증 시 즉시 중단."
+                },
+                {
+                    "exercise_id": "knee02",
+                    "week_number": 4, "sequence_order": 2,
+                    "sets": 4, "reps": 20, "duration_seconds": None,
+                    "frequency_per_day": 3, "special_notes": None
                 },
             ]
         )
