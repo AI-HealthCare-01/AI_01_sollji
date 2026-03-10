@@ -40,7 +40,15 @@ async def run_analysis_background(
             # 2. GuideResult 업데이트 (분석 결과 저장)
             guide = await db.get(GuideResult, guide_result_id)
             guide.status = "completed"
-            guide.overall_safety_score = result.overall_safety_score
+            guide.overall_safety_score = result.overall_safety_score  # 일단 유지
+            guide.patient_name = result.patient_name
+            guide.birth_date = result.birth_date
+            guide.age = result.age
+            guide.gender = result.gender
+            guide.diagnosis = result.diagnosis
+            guide.hospital_name = result.hospital_name
+            guide.doctor_name = result.doctor_name
+            guide.visit_date = result.visit_date
             guide.summary = result.summary
             guide.medication_guide = result.medication_guide
             guide.lifestyle_guide = result.lifestyle_guide
@@ -147,11 +155,55 @@ async def analyze_document(
     )
 
     # 5. 즉시 응답 (분석은 백그라운드에서 진행 중)
+    # ✅ completed 응답 부분 교체
     return {
         "guide_result_id": guide.id,
-        "status": "processing",
-        "message": "분석이 시작되었습니다. /analysis/{guide_result_id}/status 로 진행 상황을 확인하세요."
+        "status": "completed",
+        # 환자/진료 정보
+        "patient_name": guide.patient_name,
+        "birth_date": guide.birth_date,
+        "age": guide.age,
+        "gender": guide.gender,
+        "diagnosis": guide.diagnosis,
+        "hospital_name": guide.hospital_name,
+        "doctor_name": guide.doctor_name,
+        "visit_date": guide.visit_date,
+        # 분석 결과
+        "summary": guide.summary,
+        "medication_guide": guide.medication_guide,
+        "lifestyle_guide": guide.lifestyle_guide,
+        "warning_signs": guide.warning_signs,
     }
+
+
+# ─────────────────────────────────────────
+# GET /history — 내 분석 이력 조회
+# ─────────────────────────────────────────
+@router.get("/history", summary="내 분석 이력 조회")
+async def get_analysis_history(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(GuideResult)
+        .where(GuideResult.user_id == current_user.id)
+        .order_by(GuideResult.generated_at.desc())
+        .limit(20)
+    )
+    guides = result.scalars().all()
+
+    return [
+        {
+            "guide_result_id": g.id,
+            "status": g.status,
+            "created_at": g.generated_at.isoformat() if g.generated_at else None,
+            "patient_name": g.patient_name,
+            "diagnosis": g.diagnosis,
+            "hospital_name": g.hospital_name,
+            "summary": g.summary,
+        }
+        for g in guides
+    ]
 
 
 # ─────────────────────────────────────────
@@ -195,3 +247,4 @@ async def get_analysis_status(
             "lifestyle_guide": guide.lifestyle_guide,
             "warning_signs": guide.warning_signs,
         }
+
