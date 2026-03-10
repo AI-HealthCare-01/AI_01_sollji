@@ -28,8 +28,8 @@ class Settings(BaseSettings):
 
     # Mock 설정
     use_mock_ocr: bool = False
-    use_mock_analysis: bool = True
-    use_mock_chat: bool = True  # ← 추가
+    use_mock_analysis: bool = False
+    use_mock_chat: bool = False
 
     class Config:
         env_file = ".env"
