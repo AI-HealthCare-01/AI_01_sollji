@@ -18,8 +18,8 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     message: str
-    session_id: Optional[int] = None   # 기존 세션 이어가기
-    guide_id: Optional[int] = None     # 분석 결과 기반 채팅
+    session_id: Optional[int] = None
+    guide_id: Optional[int] = None
 
 class ChatResponse(BaseModel):
     session_id: int
@@ -41,12 +41,6 @@ async def chat(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    GPT 건강 상담 채팅
-    - session_id 없으면 새 세션 자동 생성
-    - session_id 있으면 기존 세션 이어서 대화
-    - guide_id 있으면 분석 결과 기반 맥락 채팅
-    """
     if not request.message.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -68,7 +62,6 @@ async def get_my_sessions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """내 채팅 세션 목록 조회"""
     result = await db.execute(
         select(ChatSession)
         .where(ChatSession.user_id == current_user.id)
@@ -96,8 +89,6 @@ async def get_session_messages(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """특정 세션의 대화 기록 조회"""
-    # 세션 소유자 확인
     session_result = await db.execute(
         select(ChatSession).where(
             ChatSession.id == session_id,
@@ -111,7 +102,6 @@ async def get_session_messages(
             detail="세션을 찾을 수 없습니다."
         )
 
-    # 메시지 조회
     msg_result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -136,7 +126,6 @@ async def end_chat_session(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """채팅 세션 종료"""
     success = await end_session(db, current_user.id, session_id)
     if not success:
         raise HTTPException(
@@ -144,3 +133,30 @@ async def end_chat_session(
             detail="세션을 찾을 수 없습니다."
         )
     return {"message": "세션이 종료되었습니다.", "session_id": session_id}
+
+
+# ── 세션 삭제  ──────────────────────────────────
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_200_OK)
+async def delete_chat_session(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(ChatSession).where(
+            ChatSession.id == session_id,
+            ChatSession.user_id == current_user.id
+        )
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="세션을 찾을 수 없습니다."
+        )
+
+    await db.delete(session)  # cascade로 ChatMessage도 자동 삭제
+    await db.commit()
+    return {"message": "세션이 삭제되었습니다.", "session_id": session_id}

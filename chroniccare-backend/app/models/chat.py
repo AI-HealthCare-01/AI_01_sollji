@@ -20,7 +20,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    related_guide_id = Column(Integer, ForeignKey("guide_results.id"))
+    related_guide_id = Column(Integer, ForeignKey("guide_results.id", ondelete="CASCADE"))
     context_type = Column(String(20))
     context_id = Column(Integer)
     session_status = Column(String(20), nullable=False, default="ACTIVE")

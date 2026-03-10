@@ -5,26 +5,31 @@ from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.chat import ChatSession, ChatMessage
+from app.core.config import get_settings
 import time
 import logging
 
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────
-# OpenAI 클라이언트 — 모듈 레벨에서 1회만 생성
+# OpenAI 클라이언트 — 필요할 때(Lazy) 1회만 생성
 # ─────────────────────────────────────────
-def _build_client() -> AsyncOpenAI | None:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        return None
-    return AsyncOpenAI(api_key=api_key)
 
-_openai_client: AsyncOpenAI | None = _build_client()
-
+_openai_client: AsyncOpenAI | None = None
 
 def get_openai_client() -> AsyncOpenAI:
+    global _openai_client
+
+    # 클라이언트가 아직 안 만들어졌을 때만 새로 만듭니다.
     if _openai_client is None:
-        raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+        settings = get_settings()
+        api_key = settings.OPENAI_API_KEY
+
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다. (.env 파일을 확인하세요)")
+
+        _openai_client = AsyncOpenAI(api_key=api_key)
+
     return _openai_client
 
 

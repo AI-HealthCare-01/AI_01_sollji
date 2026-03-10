@@ -23,6 +23,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const guideId = (location.state as { guide_id?: number })?.guide_id ?? null;
@@ -47,6 +48,27 @@ export default function Chat() {
       })));
     } catch {
       setMessages([]);
+    }
+  };
+
+  // 세션 삭제
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: number) => {
+    e.stopPropagation(); // 세션 클릭 이벤트 방지
+    if (!window.confirm('이 대화를 삭제할까요?')) return;
+
+    setDeletingSessionId(sessionId);
+    try {
+      await apiClient.delete(`/api/v1/chat/sessions/${sessionId}`);
+      setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+      // 현재 보고 있던 세션이 삭제된 경우 초기화
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(null);
+        setMessages([]);
+      }
+    } catch {
+      alert('삭제에 실패했어요.');
+    } finally {
+      setDeletingSessionId(null);
     }
   };
 
@@ -124,20 +146,41 @@ export default function Chat() {
               <p className="text-xs text-gray-300 px-2 py-3 text-center">대화 기록이 없어요</p>
             )}
             {sessions.map(s => (
-              <button
+              // 세션 아이템 — 삭제 버튼 추가
+              <div
                 key={s.session_id}
-                onClick={() => void loadSession(s.session_id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all ${
+                className={`group relative w-full rounded-xl transition-all ${
                   currentSessionId === s.session_id
-                    ? 'bg-blue-100 text-blue-700 font-medium'
-                    : 'text-gray-500 hover:bg-gray-100'
+                    ? 'bg-blue-100'
+                    : 'hover:bg-gray-100'
                 }`}
               >
-                <p className="truncate">💬 세션 #{s.session_id}</p>
-                <p className="text-xs text-gray-300 mt-0.5">
-                  {new Date(s.started_at).toLocaleDateString('ko-KR')}
-                </p>
-              </button>
+                <button
+                  onClick={() => void loadSession(s.session_id)}
+                  className="w-full text-left px-3 py-2.5 text-sm pr-8"
+                >
+                  <p className={`truncate ${
+                    currentSessionId === s.session_id
+                      ? 'text-blue-700 font-medium'
+                      : 'text-gray-500'
+                  }`}>
+                    💬 세션 #{s.session_id}
+                  </p>
+                  <p className="text-xs text-gray-300 mt-0.5">
+                    {new Date(s.started_at).toLocaleDateString('ko-KR')}
+                  </p>
+                </button>
+
+                {/* 삭제 버튼 — hover 시 표시 */}
+                <button
+                  onClick={e => void handleDeleteSession(e, s.session_id)}
+                  disabled={deletingSessionId === s.session_id}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-400 disabled:opacity-30 p-1 rounded-lg hover:bg-red-50"
+                  title="대화 삭제"
+                >
+                  {deletingSessionId === s.session_id ? '...' : '🗑'}
+                </button>
+              </div>
             ))}
           </div>
         </div>
