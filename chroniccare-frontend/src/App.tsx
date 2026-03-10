@@ -10,6 +10,8 @@ import Chat from './pages/Chat';
 import Landing from './pages/Landing';
 import AnalysisResult from './pages/AnalysisResult';
 import Register from './pages/Register';
+import MyPage from './pages/MyPage';
+import HealthProfile from './pages/HealthProfile';
 
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -54,6 +56,15 @@ export default function App() {
         } />
 
         <Route path="/register" element={<Register />} />
+
+        <Route path="/mypage" element={
+          <PrivateRoute><MyPage /></PrivateRoute>
+        } />
+
+        <Route path="/health-profile" element={
+          <PrivateRoute><HealthProfile /></PrivateRoute>
+        } />
+
       </Routes>
     </BrowserRouter>
   );

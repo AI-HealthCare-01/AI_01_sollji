@@ -134,6 +134,13 @@ async def delete_allergy(
 
 # ─── 건강 프로필 ──────────────────────────────────────────────
 
+@router.get("/health", summary="건강 프로필 조회")
+async def get_health_profile(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await profile_service.get_health_profile(db, current_user.id)
+
 @router.post("/health", summary="건강 프로필 등록/수정")
 async def upsert_health_profile(
     body: HealthProfileCreate,
@@ -143,7 +150,6 @@ async def upsert_health_profile(
     return await profile_service.upsert_health_profile(
         db, current_user.id, body.dict(exclude_none=True)
     )
-
 
 # ─── 전체 프로필 조회 ─────────────────────────────────────────
 

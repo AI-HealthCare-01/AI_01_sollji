@@ -1,28 +1,34 @@
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { isAuthenticated, logout } = useAuthStore();
 
   const features = [
     {
       icon: '💊',
       title: '처방전 AI 분석',
       desc: '처방전 사진을 찍어 업로드하면 AI가 약물 정보, 복용법, 주의사항을 자동으로 분석해드려요.',
+      path: '/prescription',
     },
     {
       icon: '🤖',
       title: 'AI 건강 상담',
       desc: '처방전 기반으로 궁금한 점을 챗봇에게 물어보세요. 약 부작용, 식이요법, 생활습관까지 상담 가능해요.',
+      path: '/chat',
     },
     {
       icon: '🏃',
       title: '맞춤 재활 운동',
       desc: '진단 결과에 맞는 재활 운동 플랜을 AI가 자동으로 생성하고, 진행률을 관리해드려요.',
+      path: '/rehabilitation',
     },
     {
       icon: '📋',
       title: '건강 기록 관리',
       desc: '기저질환, 복용 중인 약, 알레르기 정보를 한 곳에 모아 분석 이력과 함께 관리하세요.',
+      path: '/dashboard',
     },
   ];
 
@@ -59,7 +65,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-white text-gray-800">
 
-      {/* 네비게이션 */}
+      {/* ✅ 변경 1: 네비게이션 — 로그인 전: 로그인+회원가입 / 로그인 후: 대시보드+로그아웃 */}
       <nav className="sticky top-0 z-50 bg-white border-b shadow-sm flex items-center justify-between px-10 py-4">
         <div
           className="flex items-center gap-2 cursor-pointer"
@@ -68,18 +74,37 @@ export default function Landing() {
           <span className="text-2xl font-bold text-blue-600">ChronicCare</span>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/login')}
-            className="px-5 py-2 text-blue-600 font-medium rounded-xl hover:bg-blue-50 transition-all"
-          >
-            로그인
-          </button>
-          <button
-            onClick={() => navigate('/register')}
-            className="px-5 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-all"
-          >
-            무료 시작하기
-          </button>
+          {isAuthenticated ? (
+            <>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="px-5 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-all"
+              >
+                대시보드로 이동 →
+              </button>
+              <button
+                onClick={() => { logout(); navigate('/'); }}
+                className="px-5 py-2 text-red-500 font-medium rounded-xl hover:bg-red-50 transition-all"
+              >
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/login')}
+                className="px-5 py-2 text-blue-600 font-medium rounded-xl hover:bg-blue-50 transition-all"
+              >
+                로그인
+              </button>
+              <button
+                onClick={() => navigate('/register')}
+                className="px-5 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-all"
+              >
+                회원가입
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -97,21 +122,27 @@ export default function Landing() {
             처방전 OCR 분석부터 AI 상담, 맞춤 재활 운동까지<br />
             ChronicCare가 만성질환 관리를 도와드려요.
           </p>
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={() => navigate('/register')}
-              className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-            >
-              무료로 시작하기 →
-            </button>
-            <button
-              onClick={() => navigate('/login')}
-              className="border-2 border-gray-200 text-gray-600 px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-gray-50 transition-all"
-            >
-              로그인
-            </button>
-          </div>
-          <p className="text-sm text-gray-400 mt-5">회원가입 무료 · 언제든지 탈퇴 가능</p>
+
+          {/* ✅ 변경 2: 히어로 버튼 + 안내문구 — 로그인 전에만 표시 */}
+          {!isAuthenticated && (
+            <>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => navigate('/register')}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                >
+                  무료로 시작하기 →
+                </button>
+                <button
+                  onClick={() => navigate('/login')}
+                  className="border-2 border-gray-200 text-gray-600 px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-gray-50 transition-all"
+                >
+                  로그인
+                </button>
+              </div>
+              <p className="text-sm text-gray-400 mt-5">회원가입 무료 · 언제든지 탈퇴 가능</p>
+            </>
+          )}
         </div>
       </section>
 
@@ -145,11 +176,19 @@ export default function Landing() {
             {features.map(f => (
               <div
                 key={f.title}
-                className="bg-white rounded-2xl p-7 shadow-sm hover:shadow-md transition-all border border-gray-100"
+                onClick={() => isAuthenticated && navigate(f.path)}
+                className={`bg-white rounded-2xl p-7 shadow-sm hover:shadow-md transition-all border border-gray-100
+                  ${isAuthenticated
+                    ? 'cursor-pointer hover:border-blue-200 hover:bg-blue-50'
+                    : 'cursor-default'
+                  }`}
               >
                 <div className="text-4xl mb-4">{f.icon}</div>
                 <h4 className="text-lg font-bold text-gray-800 mb-2">{f.title}</h4>
                 <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
+                {isAuthenticated && (
+                  <p className="text-blue-500 text-sm font-medium mt-3">바로가기 →</p>
+                )}
               </div>
             ))}
           </div>
@@ -164,7 +203,6 @@ export default function Landing() {
           <div className="grid grid-cols-3 gap-8">
             {steps.map((s, i) => (
               <div key={s.step} className="relative text-center">
-                {/* 연결선 */}
                 {i < steps.length - 1 && (
                   <div className="absolute top-8 left-[calc(50%+32px)] w-[calc(100%-16px)] h-0.5 bg-blue-100 hidden md:block" />
                 )}
@@ -177,12 +215,16 @@ export default function Landing() {
               </div>
             ))}
           </div>
-          <button
-            onClick={() => navigate('/register')}
-            className="mt-14 bg-blue-600 text-white px-10 py-4 rounded-2xl text-lg font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-          >
-            지금 바로 시작하기 →
-          </button>
+
+          {/* ✅ 변경 3: "지금 바로 시작하기" — 로그인 전에만 표시 */}
+          {!isAuthenticated && (
+            <button
+              onClick={() => navigate('/register')}
+              className="mt-14 bg-blue-600 text-white px-10 py-4 rounded-2xl text-lg font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+            >
+              지금 바로 시작하기 →
+            </button>
+          )}
         </div>
       </section>
 
@@ -192,12 +234,16 @@ export default function Landing() {
         <p className="text-blue-100 mb-8 text-lg">
           ChronicCare와 함께라면 처방전 한 장으로 모든 게 시작돼요
         </p>
-        <button
-          onClick={() => navigate('/register')}
-          className="bg-white text-blue-600 px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-blue-50 transition-all shadow-md"
-        >
-          무료로 시작하기 →
-        </button>
+
+        {/* ✅ 변경 4: CTA "무료로 시작하기" — 로그인 전에만 표시 */}
+        {!isAuthenticated && (
+          <button
+            onClick={() => navigate('/register')}
+            className="bg-white text-blue-600 px-8 py-4 rounded-2xl text-lg font-semibold hover:bg-blue-50 transition-all shadow-md"
+          >
+            무료로 시작하기 →
+          </button>
+        )}
       </section>
 
       {/* 푸터 */}
