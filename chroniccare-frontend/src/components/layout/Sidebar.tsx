@@ -14,36 +14,40 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="w-48 bg-white border-r flex flex-col flex-shrink-0">
+    <aside className="w-60 bg-white border-r flex flex-col flex-shrink-0">
 
       {/* 유저 정보 */}
-      <div className="px-4 py-4 border-b">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
+      <div className="px-5 py-5 border-b">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center
+                          text-blue-600 font-bold text-base shrink-0">
             {user?.name?.[0] ?? 'U'}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-700 truncate">{user?.name ?? '사용자'}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.email ?? ''}</p>
+            <p className="text-base font-semibold text-gray-700 truncate">
+              {user?.name ?? '사용자'}
+            </p>
+            <p className="text-sm text-gray-400 truncate">{user?.email ?? ''}</p>
           </div>
         </div>
       </div>
 
       {/* 네비 */}
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-4 space-y-2">
         {navItems.map(item => {
           const isActive = location.pathname === item.path;
           return (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-base
+                          font-medium transition-all ${
                 isActive
                   ? 'bg-blue-50 text-blue-600'
                   : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
             >
-              <span>{item.icon}</span>
+              <span className="text-xl">{item.icon}</span>
               <span>{item.label}</span>
             </button>
           );
