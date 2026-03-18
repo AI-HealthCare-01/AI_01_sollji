@@ -10,8 +10,8 @@ class ExerciseLibrary(Base):
     exercise_name = Column(String(100), nullable=False)
     category = Column(String(50))
     difficulty_level = Column(String(20))
-    instructions = Column(Text)           # ✅ 추가
-    contraindications = Column(ARRAY(String))  # ✅ 추가
+    instructions = Column(Text)
+    contraindications = Column(ARRAY(String))
     video_url = Column(String(1000))
     thumbnail_url = Column(String(1000))
     tags = Column(ARRAY(String))
