@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 import base64
+import re
 
 
 # ─────────────────────────────────────────
@@ -11,6 +12,24 @@ class OCRServiceBase(ABC):
     async def extract_text(self, image_bytes: bytes) -> str:
         """이미지 바이트에서 텍스트 추출"""
         pass
+
+
+# ─────────────────────────────────────────
+# ICD 코드 후처리 유틸
+# ─────────────────────────────────────────
+def _fix_icd_codes(text: str) -> str:
+    """
+    Clova OCR이 'S 5 2 5' 처럼 ICD 코드를 띄어서 읽는 문제 보정.
+    알파벳 1자 + 숫자들이 공백으로 분리된 패턴을 붙여줌.
+    예: 'S 5 2 5' → 'S525', 'I 2 1 9' → 'I219'
+    """
+    # 4자리 코드: A 1 2 3 → A123
+    text = re.sub(r'\b([A-Z])\s+(\d)\s+(\d)\s+(\d)\b', r'\1\2\3\4', text)
+    # 3자리 코드: A 1 2 → A12
+    text = re.sub(r'\b([A-Z])\s+(\d)\s+(\d)\b', r'\1\2\3', text)
+    # 소수점 포함: A123 . 4 → A123.4
+    text = re.sub(r'\b([A-Z]\d{2,3})\s*\.\s*(\d)\b', r'\1.\2', text)
+    return text
 
 
 # ─────────────────────────────────────────
@@ -76,13 +95,44 @@ class ClovaOCRService(OCRServiceBase):
             raise RuntimeError(f"Clova OCR API 오류: {response.status_code} - {response.text}")
 
         result = response.json()
+        fields = result.get("images", [])[0].get("fields", [])
 
-        # 텍스트 필드 순서대로 추출
-        texts = []
-        for field in result.get("images", [])[0].get("fields", []):
-            texts.append(field["inferText"])
+        # ─────────────────────────────────────────
+        # 위치 정보(y/x 좌표) 기반 줄 단위 조합
+        # 기존: " ".join(texts) → 공간 정보 손실
+        # 변경: y좌표로 같은 줄 묶고, x좌표로 순서 정렬
+        # ─────────────────────────────────────────
+        lines: dict[int, list[tuple[int, str]]] = {}
 
-        return " ".join(texts)
+        for field in fields:
+            vertices = field.get("boundingPoly", {}).get("vertices", [])
+            if not vertices:
+                # 위치 정보 없으면 맨 마지막 줄에 추가
+                max_key = max(lines.keys(), default=0)
+                lines.setdefault(max_key, []).append((9999, field["inferText"]))
+                continue
+
+            y = vertices[0].get("y", 0)
+            x = vertices[0].get("x", 0)
+
+            # y좌표를 15px 단위로 묶어서 같은 줄로 처리
+            # (처방전 폰트 크기에 따라 10~20 사이로 조정 가능)
+            line_key = round(y / 15)
+
+            lines.setdefault(line_key, []).append((x, field["inferText"]))
+
+        # 줄 순서대로, 같은 줄은 x좌표 순서대로 조합
+        result_lines = []
+        for line_key in sorted(lines.keys()):
+            line_texts = [text for _, text in sorted(lines[line_key])]
+            result_lines.append(" ".join(line_texts))
+
+        raw_text = "\n".join(result_lines)
+
+        # ─────────────────────────────────────────
+        # ICD 코드 후처리: "S 5 2 5" → "S525"
+        # ─────────────────────────────────────────
+        return _fix_icd_codes(raw_text)
 
 
 # ─────────────────────────────────────────
@@ -124,7 +174,7 @@ def get_ocr_service() -> OCRServiceBase:
     from app.core.config import get_settings
     settings = get_settings()
 
-    if settings.use_mock_ocr:      # getattr 제거 — config에 명시적으로 선언되어 있으니까
+    if settings.use_mock_ocr:
         return MockOCRService()
     else:
-        return ClovaOCRService()   # Google → Clova로 교체
+        return ClovaOCRService()

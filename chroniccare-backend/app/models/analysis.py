@@ -13,14 +13,13 @@ class GuideResult(Base):
     status = Column(String(20), default="processing", nullable=False, server_default="processing")
     error_message = Column(Text, nullable=True)
 
-    # 기존 필드 (유지)
     overall_safety_score = Column(Integer, nullable=True)
     summary = Column(Text)
     medication_guide = Column(Text)
     lifestyle_guide = Column(Text)
     warning_signs = Column(Text)
 
-    # ✅ 새로 추가 — 환자/진료 정보
+    # 환자/진료 정보
     patient_name = Column(String(100), nullable=True)
     birth_date = Column(String(20), nullable=True)
     age = Column(Integer, nullable=True)
@@ -58,3 +57,4 @@ class MedicationSchedule(Base):
     schedule_date = Column(JSONB, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
     guide_result = relationship("GuideResult", back_populates="medication_schedules")
+
