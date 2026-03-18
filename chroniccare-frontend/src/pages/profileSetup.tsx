@@ -5,16 +5,22 @@ import Step2_Conditions from '../components/profile/Step2_Conditions';
 import Step3_Medications from '../components/profile/Step3_Medications';
 import Step4_Allergies from '../components/profile/Step4_Allergies';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
 
 const STEPS = ['기본정보', '기저질환', '복용약', '알레르기'];
 
 export default function ProfileSetup() {
   const [currentStep, setCurrentStep] = useState(1);
   const navigate = useNavigate();
+  const { setProfileCompleted } = useAuthStore();
 
   const handleNext = () => {
-    if (currentStep < 4) setCurrentStep(prev => prev + 1);
-    else navigate('/dashboard'); // 완료 후 이동
+    if (currentStep < 4) {
+      setCurrentStep(prev => prev + 1);
+    } else {
+      setProfileCompleted(true);
+      navigate('/dashboard');
+    }
   };
 
   const handleBack = () => {

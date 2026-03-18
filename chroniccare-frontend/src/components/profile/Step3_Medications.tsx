@@ -113,7 +113,14 @@ export default function Step3_Medications({ onNext, onBack }: Props) {
             type="text"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addMedication()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                // 한글 IME 조합 중 엔터 방지
+                if (e.nativeEvent.isComposing) return
+                addMedication()
+              }
+            }}
             placeholder="🔍 약 이름 검색 또는 직접 입력"
             className="flex-1 border border-gray-300 rounded-xl px-4 py-3
                        focus:outline-none focus:ring-2 focus:ring-blue-500"

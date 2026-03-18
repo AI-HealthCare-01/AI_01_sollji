@@ -116,7 +116,14 @@ export default function Step4_Allergies({ onNext, onBack }: Props) {
             type="text"
             value={customInput}
             onChange={e => setCustomInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addCustom()}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                // 한글 IME 조합 중 엔터 방지
+                if (e.nativeEvent.isComposing) return
+                addCustom()
+              }
+            }}
             placeholder="알레르기 항목 입력"
             className="flex-1 border border-gray-300 rounded-xl px-4 py-3
                        focus:outline-none focus:ring-2 focus:ring-blue-500"

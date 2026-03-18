@@ -15,15 +15,28 @@ import HealthProfile from './pages/HealthProfile';
 
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+  const { isAuthenticated, isProfileCompleted } = useAuthStore();
+
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  if (!isProfileCompleted) return <Navigate to="/profile-setup" />;
+
+  return <>{children}</>;
 }
 
 export default function App() {
+  const { isAuthenticated } = useAuthStore();
+
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* profile-setup: 로그인은 필요하지만 profileCompleted 체크는 안 함 */}
+        <Route path="/profile-setup" element={
+          isAuthenticated ? <ProfileSetup /> : <Navigate to="/login" />
+        } />
 
         <Route path="/dashboard" element={
           <PrivateRoute><Dashboard /></PrivateRoute>
@@ -31,10 +44,6 @@ export default function App() {
 
         <Route path="/prescription" element={
           <PrivateRoute><PrescriptionAnalysis /></PrivateRoute>
-        } />
-
-        <Route path="/profile-setup" element={
-          <PrivateRoute><ProfileSetup /></PrivateRoute>
         } />
 
         <Route path="/rehabilitation" element={
@@ -45,8 +54,6 @@ export default function App() {
           <PrivateRoute><Chat /></PrivateRoute>
         } />
 
-        <Route path="/" element={<Landing />} />  {/* ← Navigate 대신 Landing */}
-
         <Route path="/result/:id" element={
           <PrivateRoute><AnalysisResult /></PrivateRoute>
         } />
@@ -54,8 +61,6 @@ export default function App() {
         <Route path="/history" element={
           <PrivateRoute><Dashboard /></PrivateRoute>
         } />
-
-        <Route path="/register" element={<Register />} />
 
         <Route path="/mypage" element={
           <PrivateRoute><MyPage /></PrivateRoute>

@@ -13,7 +13,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./data/seed_exercises.sql:/docker-entrypoint-initdb.d/01_seed_exercises.sql
+      - ./data/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./data/seed_exercises.sql:/docker-entrypoint-initdb.d/02_seed_exercises.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_health_user} -d ${POSTGRES_DB:-ai_health_db}"]
       interval: 10s
@@ -33,6 +34,37 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  backend:
+    build:
+      context: ./chroniccare-backend
+      dockerfile: Dockerfile
+    container_name: ai_health_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./chroniccare-backend/.env
+    volumes:
+      - ./chroniccare-backend/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./chroniccare-frontend
+      dockerfile: Dockerfile
+    container_name: ai_health_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

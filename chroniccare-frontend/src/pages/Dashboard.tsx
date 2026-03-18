@@ -3,24 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import AppLayout from '../components/layout/AppLayout';
-
-interface FullProfile {
-  user: { id: number; email: string; name: string };
-  conditions: { id: number; condition_type: string }[];
-  medications: { id: number; medication_name: string }[];
-  allergies: { id: number; allergen_name: string }[];
-  health_profile: object | null;
-}
-
-interface GuideHistory {
-  guide_result_id: number;
-  status: string;
-  created_at: string;
-  patient_name: string;
-  diagnosis: string;
-  hospital_name: string;
-  summary: string;
-}
+import type { FullProfile, GuideHistory } from '../types';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -46,7 +29,6 @@ export default function Dashboard() {
     .filter(h => h.status === 'completed')
     .slice(0, 5);
 
-  // ✅ 추가: 분석 이력 삭제
   const handleDeleteHistory = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation(); // 카드 클릭(navigate) 방지
     if (!confirm('이 분석 이력을 삭제할까요?')) return;
@@ -67,7 +49,7 @@ export default function Dashboard() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold text-gray-800">
-              안녕하세요, {profile?.user?.name ?? user?.name ?? '사용자'}님 👋
+              안녕하세요, {profile?.user?.name ?? user?.name ?? '사용자'}님
             </h2>
             <p className="text-gray-500 mt-1">오늘도 건강한 하루 되세요</p>
           </div>
@@ -81,7 +63,7 @@ export default function Dashboard() {
 
         {/* 건강 요약 카드 */}
         {loading ? (
-          <div className="grid grid-cols-1 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-white rounded-2xl shadow-sm p-6 animate-pulse">
                 <div className="h-5 bg-gray-200 rounded mb-3 w-1/3" />
@@ -95,8 +77,8 @@ export default function Dashboard() {
             {/* 기저질환 */}
             <div className="bg-blue-50 rounded-2xl shadow-sm p-6">
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-2xl">🏥</span>
-                <span className="text-xl font-bold text-blue-600"> {/* ✅ text-lg → text-xl */}
+                <span className="text-2xl"></span>
+                <span className="text-xl font-bold text-blue-600">
                   기저질환
                   <span className="text-base font-normal text-gray-400 ml-2">
                     {profile?.conditions?.length ?? 0}개
@@ -107,7 +89,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap gap-2">
                   {profile.conditions.map(c => (
                     <span key={c.id}
-                      className="px-4 py-1.5 bg-blue-100 text-blue-700 rounded-full text-base font-medium"> {/* ✅ text-sm → text-base, px-3 → px-4 */}
+                      className="px-4 py-1.5 bg-blue-100 text-blue-700 rounded-full text-base font-medium">
                       {c.condition_type}
                     </span>
                   ))}
@@ -120,8 +102,8 @@ export default function Dashboard() {
             {/* 복용 중인 약 */}
             <div className="bg-green-50 rounded-2xl shadow-sm p-6">
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-2xl">💊</span>
-                <span className="text-xl font-bold text-green-600"> {/* ✅ text-lg → text-xl */}
+                <span className="text-2xl"></span>
+                <span className="text-xl font-bold text-green-600">
                   복용 중인 약
                   <span className="text-base font-normal text-gray-400 ml-2">
                     {profile?.medications?.length ?? 0}종
@@ -132,7 +114,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap gap-2">
                   {profile.medications.map(m => (
                     <span key={m.id}
-                      className="px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-base font-medium"> {/* ✅ text-sm → text-base */}
+                      className="px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-base font-medium">
                       {m.medication_name}
                     </span>
                   ))}
@@ -145,8 +127,8 @@ export default function Dashboard() {
             {/* 알레르기 */}
             <div className="bg-red-50 rounded-2xl shadow-sm p-6">
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-2xl">⚠️</span>
-                <span className="text-xl font-bold text-red-500"> {/* ✅ text-lg → text-xl */}
+                <span className="text-2xl"></span>
+                <span className="text-xl font-bold text-red-500">
                   알레르기
                   <span className="text-base font-normal text-gray-400 ml-2">
                     {profile?.allergies?.length ?? 0}개
@@ -157,7 +139,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap gap-2">
                   {profile.allergies.map(a => (
                     <span key={a.id}
-                      className="px-4 py-1.5 bg-red-100 text-red-600 rounded-full text-base font-medium"> {/* ✅ text-sm → text-base */}
+                      className="px-4 py-1.5 bg-red-100 text-red-600 rounded-full text-base font-medium">
                       {a.allergen_name}
                     </span>
                   ))}
@@ -172,7 +154,7 @@ export default function Dashboard() {
 
         {/* 분석 이력 */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-2xl font-bold text-gray-700 mb-5">분석 이력</h3> {/* ✅ text-xl → text-2xl */}
+          <h3 className="text-2xl font-bold text-gray-700 mb-5">분석 이력</h3>
 
           {historyLoading && (
             <div className="space-y-3">
@@ -206,7 +188,7 @@ export default function Dashboard() {
 
                       {/* 진단명 + 완료 뱃지 */}
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-lg font-bold text-gray-800">
+                        <span className="text-xl font-bold text-gray-800">
                           {h.diagnosis || '진단명 없음'}
                         </span>
                         <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-green-100 text-green-600 shrink-0">
@@ -215,21 +197,37 @@ export default function Dashboard() {
                       </div>
 
                       {/* 병원 · 환자 · 날짜 */}
-                      <p className="text-sm font-medium text-gray-500 mb-1.5">
-                        {h.hospital_name && `${h.hospital_name} · `}
-                        {h.patient_name && `${h.patient_name} · `}
-                        {new Date(h.created_at).toLocaleDateString('ko-KR')}
-                      </p>
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        {h.hospital_name && (
+                          <span className="text-base text-gray-500">{h.hospital_name}</span>
+                        )}
+                        {h.hospital_name && h.patient_name && (
+                          <span className="text-gray-300">·</span>
+                        )}
+                        {h.patient_name && (
+                          <span className="text-base text-gray-500">{h.patient_name}</span>
+                        )}
+                        {(h.hospital_name || h.patient_name) && (
+                          <span className="text-gray-300">·</span>
+                        )}
+                        <span className="text-base font-semibold text-blue-500">
+                          {new Date(h.created_at).toLocaleDateString('ko-KR', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </span>
+                      </div>
 
                       {/* 요약 */}
                       {h.summary && (
-                        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+                        <p className="text-base text-gray-500 line-clamp-2 leading-relaxed">
                           {h.summary}
                         </p>
                       )}
                     </div>
 
-                    {/* ✅ 우측: 삭제 버튼 + 화살표 */}
+                    {/* 우측: 삭제 버튼 + 화살표 */}
                     <div className="flex flex-col items-end justify-between gap-6 shrink-0">
                       <button
                         onClick={(e) => handleDeleteHistory(e, h.guide_result_id)}

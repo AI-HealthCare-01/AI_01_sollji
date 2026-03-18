@@ -7,7 +7,8 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models import Document, OCRResult
-from app.services.ocr_service import get_ocr_service  # ✅ 이미 있음
+from app.services.ocr_service import get_ocr_service
+from app.core.error_codes import raise_error  # ✅ 추가
 
 router = APIRouter()
 
@@ -21,25 +22,23 @@ ALLOWED_MIME_TYPES = [
     "application/pdf"
 ]
 
+
 @router.post("/upload", summary="처방전 이미지 업로드")
 async def upload_document(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # OCR_001: 파일 형식 체크
     if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail="지원하지 않는 파일 형식입니다. 허용: JPG, PNG, WEBP, PDF"
-        )
+        raise_error("OCR_001")
 
     contents = await file.read()
     file_size = len(contents)
+
+    # OCR_002: 파일 크기 체크
     if file_size > 10 * 1024 * 1024:
-        raise HTTPException(
-            status_code=400,
-            detail="파일 크기는 10MB를 초과할 수 없습니다."
-        )
+        raise_error("OCR_002")
 
     ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4()}{ext}"
@@ -60,11 +59,18 @@ async def upload_document(
     await db.commit()
     await db.refresh(document)
 
-    # ✅ [추가 블록 1] OCR 실행
-    ocr_service = get_ocr_service()
-    extracted_text = await ocr_service.extract_text(contents)
+    # OCR_003: OCR 실행 — 실패 시 에러 코드 반환
+    try:
+        ocr_service = get_ocr_service()
+        extracted_text = await ocr_service.extract_text(contents)
+    except Exception:
+        raise_error("OCR_003")
 
-    # ✅ [추가 블록 2] OCRResult DB 저장
+    # OCR_005: OCR 결과가 비어있으면 인식 실패로 처리
+    if not extracted_text or not extracted_text.strip():
+        raise_error("OCR_005")
+
+    # OCRResult DB 저장
     ocr_result = OCRResult(
         document_id=document.id,
         raw_text=extracted_text,
@@ -78,7 +84,7 @@ async def upload_document(
         "file_name": unique_filename,
         "file_size": file_size,
         "mime_type": file.content_type,
-        "extracted_text": extracted_text  # ✅ OCR 결과 반환
+        "extracted_text": extracted_text
     }
 
 
@@ -96,8 +102,9 @@ async def get_document(
     )
     document = result.scalar_one_or_none()
 
+    # RES_001: 문서 없음
     if not document:
-        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+        raise_error("RES_001")
 
     return {
         "id": document.id,
