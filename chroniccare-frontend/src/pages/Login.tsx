@@ -8,7 +8,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setUser } = useAuthStore();
+  const { setUser, setProfileCompleted } = useAuthStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.SyntheticEvent) => {
@@ -17,10 +17,15 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await apiClient.post('/api/v1/auth/login', { email, password });
-      const { access_token, user_id, name, role } = res.data;
-      localStorage.setItem('token', access_token);
+      const { access_token, user_id, name, role, has_health_profile} = res.data;
       setUser({ id: user_id, email, name, role: role ?? 'patient' }, access_token);
-      navigate('/dashboard');
+
+      if (has_health_profile) {
+        setProfileCompleted(true);
+        navigate('/dashboard');
+      } else {
+        navigate('/profile-setup');
+      }
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail;

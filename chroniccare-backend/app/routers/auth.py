@@ -1,17 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 from app.core.database import get_db
 from app.models.user import User
 from app.core.security import create_access_token
 from app.core.security import get_current_user
+from datetime import datetime
+from typing import Optional
 import bcrypt
 
 router = APIRouter()
 
 
-# ✅ bcrypt 직접 사용 (passlib 제거)
+# bcrypt 직접 사용 (passlib 제거)
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
@@ -35,12 +38,14 @@ class UserResponse(BaseModel):
     id: int
     email: str
     name: str
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
+class NameUpdate(BaseModel):
+    name: str
 
-# 🆕 비밀번호 변경 스키마 추가
 class PasswordUpdate(BaseModel):
     current_password: str
     new_password: str
@@ -53,7 +58,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="이미 사용 중인 이메일입니다.")
     user = User(
         email=req.email,
-        password_hash=hash_password(req.password),  # ✅ 변경
+        password_hash=hash_password(req.password),
         name=req.name,
     )
     db.add(user)
@@ -64,9 +69,13 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == req.email))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.health_profile))
+        .where(User.email == req.email)
+    )
     user = result.scalar_one_or_none()
-    if not user or not verify_password(req.password, user.password_hash):  # ✅ 변경
+    if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 틀렸습니다.")
 
     access_token = create_access_token(data={"sub": str(user.id)})
@@ -74,20 +83,32 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer",
         "user_id": user.id,
-        "name": user.name
+        "name": user.name,
+        "has_health_profile": user.health_profile is not None
     }
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(
-        current_user: User = Depends(get_current_user)  # ✅ User 객체 직접 받기
+        current_user: User = Depends(get_current_user)
 ):
-    # ✅ DB 조회 불필요 — current_user가 이미 User 객체
-    return current_user  # ✅ UserResponse가 알아서 직렬화
+    # DB 조회 불필요 — current_user가 이미 User 객체
+    return current_user  # UserResponse가 알아서 직렬화
 
+# ───  이름 수정 API  ───────────────────────────────────
+@router.patch("/me", summary="이름 수정", response_model=UserResponse)
+async def update_name(
+    body: NameUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    current_user.name = body.name
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
 
-# ─── 🆕 비밀번호 변경 API ────────────────────────────────────────
-@router.put("/me/password", summary="비밀번호 변경")
+# ───  비밀번호 변경 API ────────────────────────────────────────
+@router.patch("/me/password", summary="비밀번호 변경")
 async def update_password(
         body: PasswordUpdate,
         db: AsyncSession = Depends(get_db),

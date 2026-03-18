@@ -24,12 +24,27 @@ app = FastAPI(
     swagger_ui_init_oauth={},
 )
 
+# 환경별 허용 origin 분리
+if settings.app_env == "production":
+    allowed_origins = [
+        "http://localhost:3000",       # 배포 후 실제 도메인으로 교체
+        "http://localhost:80",
+    ]
+else:
+    # development / test
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # 1️⃣ 인증

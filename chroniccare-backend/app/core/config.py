@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     use_mock_analysis: bool = False
     use_mock_chat: bool = False
 
+    redis_url: str = "redis://localhost:6379/0"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
