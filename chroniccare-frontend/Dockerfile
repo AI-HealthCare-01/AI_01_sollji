@@ -1,14 +1,12 @@
-FROM node:20-slim
-
+FROM node:20-slim AS builder
 WORKDIR /app
-
-# 의존성 먼저 설치 (캐시 활용)
 COPY package*.json ./
 RUN npm install
-
-# 소스 복사
 COPY . .
+RUN npm run build
 
-EXPOSE 5173
-
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx-frontend.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

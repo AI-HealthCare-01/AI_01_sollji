@@ -36,9 +36,6 @@ services:
       retries: 5
 
   backend:
-    build:
-      context: ./chroniccare-backend
-      dockerfile: Dockerfile
     platform: linux/amd64
     image: ssooll0/ai_health_final:backend
     container_name: ai_health_backend
@@ -56,9 +53,6 @@ services:
         condition: service_healthy
 
   frontend:
-    build:
-      context: ./chroniccare-frontend
-      dockerfile: Dockerfile
     platform: linux/amd64
     image: ssooll0/ai_health_final:frontend
     container_name: ai_health_frontend
