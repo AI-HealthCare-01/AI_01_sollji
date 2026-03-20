@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import AppLayout from '../components/layout/AppLayout';
 import { useAuthStore } from '../store/authStore';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -11,6 +12,7 @@ interface Message {
 
 interface Session {
   session_id: number;
+  title: string;
   context_type: string;
   session_status: string;
   started_at: string;
@@ -159,6 +161,11 @@ export default function Chat() {
               content: accumulated,
             }]);
             setStreamingContent('');
+
+            apiClient.get('/api/v1/chat/sessions')
+              .then(res => setSessions(res.data))
+              .catch(() => {});
+
             break;
           }
 
@@ -182,6 +189,7 @@ export default function Chat() {
               if (!exists) {
                 return [{
                   session_id: sid,
+                  title: '새 대화',
                   context_type: guideId ? 'guide' : 'general',
                   session_status: 'ACTIVE',
                   started_at: new Date().toISOString(),
@@ -270,7 +278,7 @@ export default function Chat() {
                       ? 'text-blue-700 font-medium'
                       : 'text-gray-500'
                   }`}>
-                    💬 세션 #{s.session_id}
+                    💬 {s.title || '새 대화'}
                   </p>
                   <p className="text-xs text-gray-300 mt-0.5">
                     {new Date(s.started_at).toLocaleDateString('ko-KR')}
@@ -342,14 +350,26 @@ export default function Chat() {
                     🤖
                   </div>
                 )}
-                <div
-                  className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-white text-gray-700 shadow-sm rounded-bl-sm'
-                  }`}
-                >
-                  {msg.content}
+                <div className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                  msg.role === 'user'
+                    ? 'bg-blue-600 text-white rounded-br-sm'
+                    : 'bg-white text-gray-700 shadow-sm rounded-bl-sm'
+                }`}>
+                  {msg.role === 'user' ? (
+                    <span className="whitespace-pre-wrap">{msg.content}</span>
+                  ) : (
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 space-y-0.5">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 space-y-0.5">{children}</ol>,
+                        li: ({ children }) => <li>{children}</li>,
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
               </div>
             ))}
@@ -360,9 +380,18 @@ export default function Chat() {
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm mr-2 flex-shrink-0 mt-1">
                   🤖
                 </div>
-                <div className="max-w-[70%] px-4 py-3 rounded-2xl rounded-bl-sm text-sm leading-relaxed whitespace-pre-wrap bg-white text-gray-700 shadow-sm">
-                  {streamingContent}
-                  {/* 커서 깜빡임 효과 */}
+                <div className="max-w-[70%] px-4 py-3 rounded-2xl rounded-bl-sm text-sm leading-relaxed bg-white text-gray-700 shadow-sm">
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                      ul: ({ children }) => <ul className="list-disc pl-4 space-y-0.5">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal pl-4 space-y-0.5">{children}</ol>,
+                      li: ({ children }) => <li>{children}</li>,
+                    }}
+                  >
+                    {streamingContent}
+                  </ReactMarkdown>
                   <span className="inline-block w-0.5 h-4 bg-blue-400 ml-0.5 animate-pulse align-middle" />
                 </div>
               </div>

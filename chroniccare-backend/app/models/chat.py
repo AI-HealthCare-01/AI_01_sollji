@@ -23,6 +23,7 @@ class ChatSession(Base):
     related_guide_id = Column(Integer, ForeignKey("guide_results.id", ondelete="CASCADE"))
     context_type = Column(String(20))
     context_id = Column(Integer)
+    title = Column(String(100))
     session_status = Column(String(20), nullable=False, default="ACTIVE")
     started_at = Column(TIMESTAMP, server_default=func.now())
     ended_at = Column(TIMESTAMP)

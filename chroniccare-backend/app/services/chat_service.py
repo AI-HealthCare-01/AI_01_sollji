@@ -161,6 +161,7 @@ async def get_or_create_session(
     user_id: int,
     session_id: int | None,
     guide_id: int | None,
+    user_message: str = "",
 ) -> ChatSession:
     if session_id == 0:
         session_id = None
@@ -179,11 +180,15 @@ async def get_or_create_session(
         if session:
             return session
 
+    # 첫 메시지 앞 30자를 title로 저장
+    title = user_message[:30] if user_message else "새 대화"
+
     new_session = ChatSession(
         user_id=user_id,
         related_guide_id=guide_id,
         context_type="general" if not guide_id else "guide",
         context_id=guide_id,
+        title=title,
         session_status="ACTIVE",
     )
     db.add(new_session)
@@ -217,7 +222,7 @@ async def chat_with_gpt(
 ) -> dict:
 
     # 1. 세션 조회/생성
-    session = await get_or_create_session(db, user_id, session_id, guide_id)
+    session = await get_or_create_session(db, user_id, session_id, guide_id, user_message)
 
     # 2. 이전 대화 기록
     history = await get_session_messages(db, session.id)
@@ -302,7 +307,7 @@ async def chat_with_gpt_stream(
     """
 
     # 1. 세션 조회/생성
-    session = await get_or_create_session(db, user_id, session_id, guide_id)
+    session = await get_or_create_session(db, user_id, session_id, guide_id, user_message)
 
     # 세션 ID를 첫 번째 SSE 이벤트로 즉시 전송
     # 프론트엔드가 이걸 받아서 currentSessionId를 업데이트함

@@ -118,6 +118,7 @@ async def get_my_sessions(
     return [
         {
             "session_id": s.id,
+            "title": s.title or "새 대화",
             "context_type": s.context_type,
             "session_status": s.session_status,
             "related_guide_id": s.related_guide_id,

@@ -38,10 +38,11 @@ class Settings(BaseSettings):
     # 환경
     environment: str = "production"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    model_config = {
+        "env_file": None,          # .env 파일 안 읽음, OS 환경변수만 사용
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
     @property
     def database_url(self) -> str:
