@@ -8,11 +8,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# ✅ 모델 로드
 from app.core.database import Base
 import app.models
 
-# ✅ asyncpg → psycopg2 로 교체 (Alembic은 동기 드라이버 필요)
 from app.core.config import get_settings
 settings = get_settings()
 sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")

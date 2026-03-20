@@ -22,6 +22,7 @@ app = FastAPI(
     debug=settings.debug,
     lifespan=lifespan,
     swagger_ui_init_oauth={},
+    root_path="/api",
 )
 
 # 환경별 허용 origin 분리

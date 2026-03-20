@@ -5,7 +5,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     # App
     app_env: str = "development"
-    secret_key: str = "change-me"
+    secret_key: str = ""
     debug: bool = True
 
     # PostgreSQL
@@ -31,11 +31,17 @@ class Settings(BaseSettings):
     use_mock_analysis: bool = False
     use_mock_chat: bool = False
 
-    redis_url: str = "redis://localhost:6379/0"
+    # JWT
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440
+
+    # 환경
+    environment: str = "production"
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
     @property
     def database_url(self) -> str:
