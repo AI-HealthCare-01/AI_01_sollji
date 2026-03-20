@@ -1,10 +1,10 @@
-# ChronicCare Ortho 기능 요구사항 명세서 (Requirements Specification) - 웹 버전
+# ChronicCare AI 기능 요구사항 명세서 (Requirements Specification) - 웹 버전
 
-**문서 버전:** v2.1 (웹 UI 레이아웃 적용)
+**문서 버전:** v3.0 (실제 구현 기준 최종 정리)
 
-**작성일:** 2026-02-26
+**작성일:** 2026-03-20
 
-**프로젝트명:** ChronicCare Ortho (만성질환자 맞춤형 통합 복약·재활 관리 시스템)
+**프로젝트명:** ChronicCare AI (만성질환자 맞춤형 통합 복약·재활 관리 시스템)
 
 **문서 목적:** 각 기능의 상세 동작 방식, API 명세, UI 요구사항, 테스트 시나리오를 정의한다.
 
@@ -12,6 +12,14 @@
 - v1.0 (2026-02-25): 초기 작성
 - v2.0 (2026-02-26): 사용자 스토리, API 명세, UI 요구사항, 테스트 시나리오 추가
 - v2.1 (2026-02-26): 웹 레이아웃으로 UI 섹션 재작성
+- v3.0 (2026-03-20): 실제 구현 기준으로 전면 수정
+  - API 경로 /v1 추가
+  - S3 → 로컬 uploads/ 폴더로 변경
+  - Celery → FastAPI BackgroundTasks로 변경
+  - localStorage → sessionStorage (Zustand persist)로 변경
+  - drug_normalizer.py 약물 표준화 방식 반영
+  - Mock 모드 환경변수 추가
+  - 챗봇 SSE 스트리밍 엔드포인트 분리 반영
 
 ---
 
@@ -34,8 +42,8 @@
 
 #### US-001: 회원가입
 
-**As a** 만성질환 환자  
-**I want to** 이메일로 회원가입하고  
+**As a** 만성질환 환자
+**I want to** 이메일로 회원가입하고
 **So that** 내 건강 정보를 안전하게 관리할 수 있다
 
 **인수 기준 (Acceptance Criteria):**
@@ -46,41 +54,41 @@
 - [ ] 회원가입 성공 시 자동 로그인
 - [ ] 에러 발생 시 명확한 메시지 표시
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 4시간
 
 ---
 
 #### US-002: 로그인
 
-**As a** 등록된 사용자  
-**I want to** 이메일과 비밀번호로 로그인하고  
+**As a** 등록된 사용자
+**I want to** 이메일과 비밀번호로 로그인하고
 **So that** 내 건강 데이터에 접근할 수 있다
 
 **인수 기준:**
 - [ ] 이메일 + 비밀번호 검증
 - [ ] 로그인 성공 시 JWT 토큰 발급 (유효기간 24시간)
-- [ ] 토큰을 localStorage에 저장
+- [ ] 토큰을 sessionStorage에 저장 (Zustand persist 미들웨어)
 - [ ] 로그인 실패 시 "이메일 또는 비밀번호가 잘못되었습니다" 메시지
 - [ ] 5회 연속 실패 시 5분간 로그인 차단 (선택 사항)
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 3시간
 
 ---
 
 #### US-003: 로그아웃
 
-**As a** 로그인한 사용자  
-**I want to** 로그아웃 버튼을 클릭하고  
+**As a** 로그인한 사용자
+**I want to** 로그아웃 버튼을 클릭하고
 **So that** 내 계정을 안전하게 보호할 수 있다
 
 **인수 기준:**
-- [ ] 로그아웃 버튼 클릭 시 localStorage에서 토큰 삭제
+- [ ] 로그아웃 버튼 클릭 시 sessionStorage에서 토큰 삭제 (Zustand store 초기화)
 - [ ] 로그인 페이지로 리다이렉트
 - [ ] 로그아웃 후 인증 필요 페이지 접근 시 로그인 페이지로 이동
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 1시간
 
 ---
@@ -89,8 +97,8 @@
 
 #### US-004: 기저질환 입력
 
-**As a** 신규 가입 사용자  
-**I want to** 내 기저질환(당뇨/고혈압/골다공증)을 선택하고  
+**As a** 신규 가입 사용자
+**I want to** 내 기저질환(당뇨/고혈압/골다공증)을 선택하고
 **So that** 맞춤형 분석을 받을 수 있다
 
 **인수 기준:**
@@ -99,37 +107,35 @@
 - [ ] 선택한 질환 DB에 저장
 - [ ] 저장 성공 시 다음 단계(약물 입력)로 이동
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 2시간
 
 ---
 
 #### US-005: 기존 약물 입력
 
-**As a** 사용자  
-**I want to** 현재 복용 중인 약물을 입력하고  
+**As a** 사용자
+**I want to** 현재 복용 중인 약물을 입력하고
 **So that** 신규 처방약과의 상호작용을 체크할 수 있다
 
 **인수 기준:**
-- [ ] 약품명 입력 필드 (자동완성 **필수**)
-- [ ] 자동완성 데이터는 표준 약물 DB에서 제공
-- [ ] 자동완성에 없는 약물은 입력 불가 (에러 메시지 표시)
-- [ ] 저장 시 `standardized_name`, `ingredient` 자동 매핑
+- [ ] 약품명 자유 텍스트 입력 가능
 - [ ] 용량 입력 (예: 500mg)
 - [ ] 복용 시간 선택 (아침/점심/저녁/취침 전)
 - [ ] 복용 횟수 선택 (1일 1~4회)
 - [ ] 여러 약물 추가 가능 (+ 버튼)
 - [ ] 입력한 약물 수정/삭제 가능
+- [ ] 저장 시 `standardized_name`은 drug_normalizer.py가 자동 생성 (백엔드 처리)
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 4시간
 
 ---
 
 #### US-006: 알러지 정보 입력
 
-**As a** 사용자  
-**I want to** 약물 알러지 정보를 입력하고  
+**As a** 사용자
+**I want to** 약물 알러지 정보를 입력하고
 **So that** 알러지 유발 약물을 피할 수 있다
 
 **인수 기준:**
@@ -137,7 +143,7 @@
 - [ ] 여러 알러지 추가 가능
 - [ ] 선택 사항 (건너뛰기 가능)
 
-**우선순위:** Medium  
+**우선순위:** Medium
 **예상 소요 시간:** 2시간
 
 ---
@@ -146,8 +152,8 @@
 
 #### US-007: 처방전 이미지 업로드
 
-**As a** 사용자  
-**I want to** 처방전 사진을 업로드하고  
+**As a** 사용자
+**I want to** 처방전 사진을 업로드하고
 **So that** 자동으로 약물 정보를 인식받을 수 있다
 
 **인수 기준:**
@@ -156,17 +162,18 @@
 - [ ] 10MB 이하 파일만 허용
 - [ ] 업로드 중 로딩 표시 (프로그레스 바)
 - [ ] 업로드 성공 시 OCR 처리 자동 시작
+- [ ] 업로드된 이미지는 로컬 uploads/ 폴더에 임시 저장 (24시간 후 자동 삭제)
 - [ ] 업로드 실패 시 에러 메시지 + 재시도 버튼
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 4시간
 
 ---
 
 #### US-008: OCR 결과 확인 및 수정
 
-**As a** 사용자  
-**I want to** OCR로 인식된 약물 정보를 확인하고 수정하고  
+**As a** 사용자
+**I want to** OCR로 인식된 약물 정보를 확인하고 수정하고
 **So that** 정확한 분석 결과를 받을 수 있다
 
 **인수 기준:**
@@ -178,15 +185,15 @@
 - [ ] 약물 추가 버튼 (수동 입력)
 - [ ] "분석 시작" 버튼
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 6시간
 
 ---
 
 #### US-009: 약물 상호작용 분석 결과 확인
 
-**As a** 사용자  
-**I want to** 기존 약물과 신규 약물의 상호작용을 확인하고  
+**As a** 사용자
+**I want to** 기존 약물과 신규 약물의 상호작용을 확인하고
 **So that** 안전하게 약을 복용할 수 있다
 
 **인수 기준:**
@@ -196,16 +203,17 @@
 - [ ] 권장사항 표시
 - [ ] 상호작용이 없는 경우 "안전" 메시지
 - [ ] 면책 문구 표시: "정확한 진단은 의사와 상담하세요"
+- [ ] overall_safety_score 표시 (⚠️ 현재 항상 0, 계산 로직 미구현)
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 4시간
 
 ---
 
 #### US-010: 복약 시간표 확인
 
-**As a** 사용자  
-**I want to** 시간대별 복약 시간표를 확인하고  
+**As a** 사용자
+**I want to** 시간대별 복약 시간표를 확인하고
 **So that** 약 복용 시간을 헷갈리지 않을 수 있다
 
 **인수 기준:**
@@ -213,9 +221,9 @@
 - [ ] 각 시간대에 복용할 약물 리스트
 - [ ] 약물별 용량, 복용 방법 표시
 - [ ] 특별 주의사항 표시 (예: "공복에 복용", "물 한 컵과 함께")
-- [ ] 인쇄 또는 PDF 다운로드 기능 (선택 사항)
+- [ ] schedule_date는 JSONB 타입으로 저장됨
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 4시간
 
 ---
@@ -224,28 +232,29 @@
 
 #### US-011: 맞춤 재활 운동 추천
 
-**As a** 수술/시술 후 환자  
-**I want to** 내 기저질환을 고려한 재활 운동을 추천받고  
+**As a** 수술/시술 후 환자
+**I want to** 내 기저질환을 고려한 재활 운동을 추천받고
 **So that** 안전하게 회복할 수 있다
 
 **인수 기준:**
 - [ ] 수술 부위 입력 (무릎/손목/허리 등)
 - [ ] 수술일 입력
-- [ ] 기저질환 고려한 운동 추천
+- [ ] 기저질환 고려한 운동 추천 (GPT-4o-mini, temperature=0.2)
 - [ ] 금기 운동 제외 (예: 골다공증 환자 → 낙상 위험 운동 제외)
 - [ ] 주차별 운동 프로그램 (1~4주)
 - [ ] 각 운동마다 세트/횟수 표시
+- [ ] exercise_library (seed_exercises.sql로 사전 로딩)에서 운동 매핑
 - [ ] 운동 영상 링크 제공 (유튜브)
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 6시간
 
 ---
 
 #### US-012: 운동 영상 시청
 
-**As a** 사용자  
-**I want to** 각 운동의 시범 영상을 보고  
+**As a** 사용자
+**I want to** 각 운동의 시범 영상을 보고
 **So that** 올바른 자세로 운동할 수 있다
 
 **인수 기준:**
@@ -253,24 +262,24 @@
 - [ ] 버튼 클릭 시 새 탭에서 유튜브 영상 재생
 - [ ] 영상 링크 없는 경우 "준비 중" 표시
 
-**우선순위:** Medium  
+**우선순위:** Medium
 **예상 소요 시간:** 2시간
 
 ---
 
-#### US-013: 운동 완료 기록 (선택 사항)
+#### US-013: 운동 완료 기록
 
-**As a** 사용자  
-**I want to** 완료한 운동을 체크하고  
+**As a** 사용자
+**I want to** 완료한 운동을 체크하고
 **So that** 진행 상황을 추적할 수 있다
 
 **인수 기준:**
 - [ ] 각 운동마다 체크박스
-- [ ] 체크 시 완료 시간 DB 저장
+- [ ] 체크 시 exercise_completions 테이블에 저장 (completed_date 포함)
 - [ ] 주차별 완료율 표시 (예: 3/5 완료)
 - [ ] 완료한 운동 회색 처리
 
-**우선순위:** Low  
+**우선순위:** Medium
 **예상 소요 시간:** 3시간
 
 ---
@@ -279,79 +288,79 @@
 
 #### US-014: 챗봇 질문하기
 
-**As a** 사용자  
-**I want to** 약물이나 재활에 대해 질문하고  
+**As a** 사용자
+**I want to** 약물이나 재활에 대해 질문하고
 **So that** 궁금증을 즉시 해결할 수 있다
 
 **인수 기준:**
 - [ ] 채팅 입력 필드 (하단 고정)
 - [ ] 질문 전송 버튼
 - [ ] 질문 전송 시 로딩 표시 (타이핑 애니메이션)
-- [ ] 3초 이내 답변 표시
+- [ ] SSE 스트리밍으로 실시간 답변 표시 (POST /api/v1/chat/stream)
 - [ ] 답변에 면책 문구 자동 추가
 - [ ] 이전 대화 내역 표시 (스크롤 가능)
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 6시간
 
 ---
 
 #### US-015: 컨텍스트 인식 챗봇
 
-**As a** 사용자  
-**I want to** 현재 보고 있는 화면 정보를 기반으로 답변받고  
+**As a** 사용자
+**I want to** 현재 보고 있는 화면 정보를 기반으로 답변받고
 **So that** 더 정확한 답변을 받을 수 있다
 
 **인수 기준:**
 - [ ] 사용자가 보는 화면 정보 자동 감지 (약물 분석 결과/재활 플랜)
-- [ ] 해당 정보를 프롬프트에 포함
+- [ ] 해당 정보를 프롬프트에 직접 주입 (seed_knowledge.json + 분석 리포트)
 - [ ] 예: "이부프로펜 먹으면 어지러운데 운동해도 되나요?" → 현재 복용 약물 + 재활 플랜 참고하여 답변
 
-**우선순위:** Medium  
+**우선순위:** Medium
 **예상 소요 시간:** 4시간
 
 ---
 
 #### US-016: 챗봇 피드백
 
-**As a** 사용자  
-**I want to** 챗봇 답변에 좋아요/싫어요를 표시하고  
+**As a** 사용자
+**I want to** 챗봇 답변에 좋아요/싫어요를 표시하고
 **So that** 서비스 개선에 기여할 수 있다
 
 **인수 기준:**
 - [ ] 각 답변마다 👍 👎 버튼
-- [ ] 버튼 클릭 시 DB에 피드백 저장
+- [ ] 버튼 클릭 시 feedbacks 테이블에 저장 (rating, latency_ms 포함)
 - [ ] 클릭 후 버튼 비활성화 (중복 방지)
 - [ ] 피드백 감사 메시지 표시
 
-**우선순위:** High  
+**우선순위:** High
 **예상 소요 시간:** 2시간
 
 ---
 
 ### 1.6 대시보드 (Dashboard)
 
-#### US-017: 안전 점수 확인 (선택 사항)
+#### US-017: 안전 점수 확인
 
-**As a** 사용자  
-**I want to** 메인 화면에서 내 안전 점수를 확인하고  
+**As a** 사용자
+**I want to** 메인 화면에서 내 안전 점수를 확인하고
 **So that** 현재 상태를 한눈에 파악할 수 있다
 
 **인수 기준:**
-- [ ] 0~100 점수 표시
+- [ ] overall_safety_score 표시
+- [ ] ⚠️ 현재 항상 0으로 표시됨 (DB 컬럼 존재, 계산 로직 미구현)
 - [ ] 점수에 따른 색상 (초록 80+, 노랑 60-80, 빨강 60 미만)
-- [ ] 점수에 따른 이모지 (😊 😐 😰)
 - [ ] 점수 클릭 시 상세 설명 모달
 
-**우선순위:** Low  
+**우선순위:** Low
 **예상 소요 시간:** 3시간
 
 ---
 
 #### US-018: 분석 이력 조회
 
-**As a** 사용자  
-**I want to** 과거 분석 리포트를 조회하고  
+**As a** 사용자
+**I want to** 과거 분석 리포트를 조회하고
 **So that** 이전 처방 내역을 확인할 수 있다
 
 **인수 기준:**
@@ -360,16 +369,18 @@
 - [ ] 각 리포트마다 날짜, 약물 개수, 상호작용 개수 표시
 - [ ] 리포트 클릭 시 상세 페이지로 이동
 
-**우선순위:** Medium  
+**우선순위:** Medium
 **예상 소요 시간:** 3시간
 
 ---
 
 ## 2. API 엔드포인트 명세
 
+> ℹ️ 모든 엔드포인트는 `/api/v1` 접두사를 사용한다.
+
 ### 2.1 인증 (Authentication)
 
-#### POST /api/auth/register
+#### POST /api/v1/auth/register
 
 **설명:** 회원가입
 
@@ -378,7 +389,10 @@
 {
   "email": "user@example.com",
   "password": "Password123!",
-  "name": "홍길동"
+  "name": "홍길동",
+  "birth_date": "1990-01-01",
+  "gender": "male",
+  "phone": "010-1234-5678"
 }
 ```
 
@@ -422,7 +436,7 @@
 
 ---
 
-#### POST /api/auth/login
+#### POST /api/v1/auth/login
 
 **설명:** 로그인
 
@@ -458,7 +472,7 @@
 
 ---
 
-#### GET /api/auth/me
+#### GET /api/v1/auth/me
 
 **설명:** 현재 로그인한 사용자 정보 조회
 
@@ -473,25 +487,80 @@ Authorization: Bearer {access_token}
   "user_id": 1,
   "email": "user@example.com",
   "name": "홍길동",
+  "birth_date": "1990-01-01",
+  "gender": "male",
+  "phone": "010-1234-5678",
   "created_at": "2026-02-25T10:00:00Z"
 }
 ```
 
-**Error Responses:**
+---
 
-**401 Unauthorized (토큰 없음):**
+#### PATCH /api/v1/auth/me
+
+**설명:** 회원 정보 수정
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+```
+
+**Request:**
 ```json
 {
-  "error_code": "AUTH_005",
-  "message": "로그인이 필요합니다"
+  "name": "홍길동",
+  "phone": "010-9876-5432"
 }
 ```
 
-**401 Unauthorized (토큰 만료):**
+**Response (200 OK):**
 ```json
 {
-  "error_code": "AUTH_006",
-  "message": "토큰이 만료되었습니다"
+  "message": "회원 정보가 수정되었습니다"
+}
+```
+
+---
+
+#### PATCH /api/v1/auth/me/password
+
+**설명:** 비밀번호 변경
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+```
+
+**Request:**
+```json
+{
+  "current_password": "Password123!",
+  "new_password": "NewPassword456!"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "비밀번호가 변경되었습니다"
+}
+```
+
+---
+
+#### DELETE /api/v1/auth/me
+
+**설명:** 회원 탈퇴
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "회원 탈퇴가 완료되었습니다"
 }
 ```
 
@@ -499,7 +568,7 @@ Authorization: Bearer {access_token}
 
 ### 2.2 프로필 (Profile)
 
-#### POST /api/profile/chronic-conditions
+#### POST /api/v1/profile/conditions
 
 **설명:** 기저질환 입력
 
@@ -522,31 +591,21 @@ Authorization: Bearer {access_token}
   "conditions": [
     {
       "id": 1,
-      "name": "diabetes",
+      "condition_type": "diabetes",
       "display_name": "당뇨"
     },
     {
       "id": 2,
-      "name": "osteoporosis",
+      "condition_type": "osteoporosis",
       "display_name": "골다공증"
     }
   ]
 }
 ```
 
-**Error Responses:**
-
-**400 Bad Request (빈 배열):**
-```json
-{
-  "error_code": "PROFILE_001",
-  "message": "최소 1개 이상의 질환을 선택해주세요"
-}
-```
-
 ---
 
-#### POST /api/profile/medications
+#### POST /api/v1/profile/medications
 
 **설명:** 기존 복용 약물 입력
 
@@ -560,16 +619,10 @@ Authorization: Bearer {access_token}
 {
   "medications": [
     {
-      "name": "메트포르민정500mg",  // 사용자 입력값 (자동완성으로 선택)
+      "medication_name": "메트포르민정500mg",
       "dosage": "500mg",
       "frequency": 2,
       "timing": ["morning", "evening"]
-    },
-    {
-      "name": "알렌드로네이트",
-      "dosage": "70mg",
-      "frequency": 1,
-      "timing": ["morning"]
     }
   ]
 }
@@ -582,37 +635,22 @@ Authorization: Bearer {access_token}
   "medications": [
     {
       "id": 1,
-      "name": "메트포르민정500mg",
-      "standardized_name": "메트포르민",  // 👈 표준명 추가
-      "ingredient": "Metformin",          // 👈 성분명 추가
+      "medication_name": "메트포르민정500mg",
+      "standardized_name": "메트포르민",
       "dosage": "500mg",
       "frequency": 2,
-      "timing": ["morning", "evening"]
-    },
-    {
-      "id": 2,
-      "name": "알렌드로네이트",
-      "dosage": "70mg",
-      "frequency": 1,
-      "timing": ["morning"]
+      "timing": ["morning", "evening"],
+      "is_active": true
     }
   ]
 }
 ```
 
-**Error Responses:**
-
-**400 Bad Request (용량 형식 오류):**
-```json
-{
-  "error_code": "PROFILE_002",
-  "message": "올바른 용량 형식이 아닙니다 (예: 500mg)"
-}
-```
+> ℹ️ `standardized_name`은 drug_normalizer.py (GPT-4o-mini, temperature=0)가 자동 생성한다.
 
 ---
 
-#### GET /api/profile
+#### GET /api/v1/profile
 
 **설명:** 사용자 프로필 전체 조회
 
@@ -632,70 +670,35 @@ Authorization: Bearer {access_token}
   "chronic_conditions": [
     {
       "id": 1,
-      "name": "diabetes",
+      "condition_type": "diabetes",
       "display_name": "당뇨"
     }
   ],
   "medications": [
     {
       "id": 1,
-      "name": "메트포르민",
+      "medication_name": "메트포르민",
+      "standardized_name": "메트포르민",
       "dosage": "500mg",
       "frequency": 2,
-      "timing": ["morning", "evening"]
+      "timing": ["morning", "evening"],
+      "is_active": true
     }
   ],
   "allergies": [
     {
       "id": 1,
-      "substance": "페니실린"
+      "allergen_name": "페니실린"
     }
   ]
-}
-```
----
-
-#### GET /api/medications/search
-
-**설명:** 약물명 자동완성 검색
-
-**Query Parameters:**
-?q=타이레놀&limit=10
-
-**Response (200 OK):**
-```json
-{
-  "results": [
-    {
-      "name": "타이레놀정500mg",
-      "standardized_name": "타이레놀",
-      "ingredient": "Acetaminophen",
-      "manufacturer": "한국얀센"
-    },
-    {
-      "name": "타이레놀정160mg",
-      "standardized_name": "타이레놀",
-      "ingredient": "Acetaminophen",
-      "manufacturer": "한국얀센"
-    }
-  ]
-}
-```
-**Error Responses:**
-
-**400 Bad Request (검색어 없음):**
-```json
-{
-  "error_code": "MEDICATION_001",
-  "message": "검색어를 입력해주세요"
 }
 ```
 
 ---
 
-### 2.3 OCR 및 분석 (OCR & Analysis)
+### 2.3 문서 및 OCR (Documents & OCR)
 
-#### POST /api/ocr/upload
+#### POST /api/v1/documents/upload
 
 **설명:** 처방전 이미지 업로드 및 OCR 처리
 
@@ -716,7 +719,7 @@ file: [이미지 파일]
   "ocr_result_id": 123,
   "document_id": 456,
   "confidence_score": 0.92,
-  "image_url": "https://s3.amazonaws.com/chroniccare/prescriptions/abc123.jpg",
+  "image_path": "/uploads/abc123.jpg",
   "medications": [
     {
       "name": "이부프로펜정",
@@ -724,18 +727,13 @@ file: [이미지 파일]
       "frequency": "1일 3회",
       "timing": "식후",
       "confidence": 0.95
-    },
-    {
-      "name": "에페리손정",
-      "dosage": "50mg",
-      "frequency": "1일 2회",
-      "timing": "식후",
-      "confidence": 0.89
     }
   ],
   "processing_time_ms": 4523
 }
 ```
+
+> ℹ️ 이미지는 로컬 `uploads/` 폴더에 저장되며 24시간 후 자동 삭제된다. S3 미사용.
 
 **Error Responses:**
 
@@ -765,7 +763,7 @@ file: [이미지 파일]
 
 ---
 
-#### PATCH /api/ocr/results/{ocr_result_id}
+#### PATCH /api/v1/documents/ocr/{ocr_result_id}
 
 **설명:** OCR 결과 수정
 
@@ -783,12 +781,6 @@ Authorization: Bearer {access_token}
       "dosage": "400mg",
       "frequency": "1일 3회",
       "timing": "식후"
-    },
-    {
-      "name": "에페리손정",
-      "dosage": "50mg",
-      "frequency": "1일 3회",
-      "timing": "식후"
     }
   ]
 }
@@ -798,29 +790,17 @@ Authorization: Bearer {access_token}
 ```json
 {
   "message": "OCR 결과가 수정되었습니다",
-  "ocr_result_id": 123,
-  "medications": [
-    {
-      "name": "이부프로펜정",
-      "dosage": "400mg",
-      "frequency": "1일 3회",
-      "timing": "식후"
-    },
-    {
-      "name": "에페리손정",
-      "dosage": "50mg",
-      "frequency": "1일 3회",
-      "timing": "식후"
-    }
-  ]
+  "ocr_result_id": 123
 }
 ```
 
 ---
 
-#### POST /api/analysis/generate
+### 2.4 분석 (Analysis)
 
-**설명:** 약물 상호작용 분석 및 재활 가이드 생성 (비동기)
+#### POST /api/v1/analysis/{document_id}
+
+**설명:** 약물 상호작용 분석 및 재활 가이드 생성 시작 (비동기)
 
 **Headers:**
 ```
@@ -830,7 +810,6 @@ Authorization: Bearer {access_token}
 **Request:**
 ```json
 {
-  "ocr_result_id": 123,
   "target_area": "knee",
   "surgery_date": "2026-02-01"
 }
@@ -839,15 +818,17 @@ Authorization: Bearer {access_token}
 **Response (202 Accepted):**
 ```json
 {
-  "task_id": "abc-123-def-456",
-  "status": "processing",
+  "guide_result_id": 789,
+  "status": "pending",
   "message": "분석이 시작되었습니다. 잠시만 기다려주세요."
 }
 ```
 
+> ℹ️ FastAPI BackgroundTasks로 비동기 처리. 즉시 202 반환 후 백그라운드에서 분석 진행.
+
 ---
 
-#### GET /api/analysis/status/{task_id}
+#### GET /api/v1/analysis/{guide_result_id}/status
 
 **설명:** 분석 작업 상태 조회 (폴링용)
 
@@ -859,27 +840,43 @@ Authorization: Bearer {access_token}
 **Response (200 OK - 진행 중):**
 ```json
 {
-  "task_id": "abc-123-def-456",
-  "status": "processing",
-  "progress": 60,
-  "current_step": "약물 상호작용 분석 중..."
+  "guide_result_id": 789,
+  "status": "pending"
 }
 ```
 
 **Response (200 OK - 완료):**
 ```json
 {
-  "task_id": "abc-123-def-456",
+  "guide_result_id": 789,
   "status": "completed",
-  "progress": 100,
-  "guide_result_id": 789
+  "drug_interactions": [
+    {
+      "medication_a": "메트포르민",
+      "medication_b": "이부프로펜",
+      "severity": "medium",
+      "mechanism": "신장 기능 저하 위험",
+      "recommendation": "복용 중 신장 기능 체크"
+    }
+  ],
+  "medication_schedules": [
+    {
+      "schedule_date": {
+        "morning": ["메트포르민 500mg", "이부프로펜 400mg"],
+        "evening": ["메트포르민 500mg"]
+      }
+    }
+  ],
+  "overall_safety_score": 0
 }
 ```
+
+> ⚠️ `overall_safety_score`는 DB 컬럼 존재, API 응답에 포함되나 항상 0. 계산 로직 미구현.
 
 **Response (200 OK - 실패):**
 ```json
 {
-  "task_id": "abc-123-def-456",
+  "guide_result_id": 789,
   "status": "failed",
   "error_code": "LLM_001",
   "message": "분석 중 오류 발생. 다시 시도해주세요"
@@ -888,9 +885,9 @@ Authorization: Bearer {access_token}
 
 ---
 
-#### GET /api/analysis/results/{guide_result_id}
+#### GET /api/v1/analysis/history
 
-**설명:** 분석 결과 조회
+**설명:** 분석 이력 조회
 
 **Headers:**
 ```
@@ -900,79 +897,75 @@ Authorization: Bearer {access_token}
 **Response (200 OK):**
 ```json
 {
-  "guide_result_id": 789,
-  "created_at": "2026-02-25T10:30:00Z",
-  "drug_interactions": [
+  "results": [
     {
-      "drug_a": "메트포르민",
-      "drug_b": "이부프로펜",
-      "severity": "medium",
-      "mechanism": "신장 기능 저하 위험",
-      "recommendation": "복용 중 신장 기능 체크"
+      "guide_result_id": 789,
+      "created_at": "2026-02-25T10:30:00Z",
+      "status": "completed",
+      "medication_count": 5,
+      "interaction_count": 2
     }
-  ],
-  "medication_schedules": [
-    {
-      "time": "아침 식후",
-      "medications": [
-        {
-          "name": "메트포르민",
-          "dosage": "500mg"
-        },
-        {
-          "name": "이부프로펜",
-          "dosage": "400mg"
-        }
-      ],
-      "instructions": "물 한 컵과 함께"
-    },
-    {
-      "time": "저녁 식후",
-      "medications": [
-        {
-          "name": "메트포르민",
-          "dosage": "500mg"
-        }
-      ],
-      "instructions": null
-    }
-  ],
-  "rehab_plan": {
-    "plan_id": 101,
-    "target_area": "무릎",
-    "duration_weeks": 4,
-    "goal": "무릎 가동범위 120도 회복",
-    "exercises": [
-      {
-        "week": 1,
-        "exercise_id": "knee01",
-        "exercise_name": "큐세팅",
-        "sets": 3,
-        "reps": 10,
-        "video_url": "https://youtube.com/watch?v=abc123",
-        "notes": "당뇨 환자 상처 체크 후 시작"
-      },
-      {
-        "week": 2,
-        "exercise_id": "knee02",
-        "exercise_name": "SLR (무릎 펴고 다리 들기)",
-        "sets": 3,
-        "reps": 10,
-        "video_url": "https://youtube.com/watch?v=def456",
-        "notes": null
-      }
-    ]
-  }
+  ]
 }
 ```
 
 ---
 
-### 2.4 챗봇 (Chatbot)
+### 2.5 재활 (Rehabilitation)
 
-#### POST /api/chat/sessions
+#### GET /api/v1/rehab/plans
 
-**설명:** 채팅 세션 생성
+**설명:** 재활 플랜 목록 조회 (Redis 캐싱 적용)
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "plans": [
+    {
+      "id": 101,
+      "target_area": "무릎",
+      "is_active": true,
+      "created_at": "2026-02-25T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### GET /api/v1/rehab/plans/{plan_id}/progress
+
+**설명:** 재활 진행률 조회
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "plan_id": 101,
+  "current_week": 2,
+  "total_weeks": 4,
+  "completed_exercises": 8,
+  "total_exercises": 15,
+  "completion_rate": 0.53
+}
+```
+
+---
+
+### 2.6 챗봇 (Chatbot)
+
+#### POST /api/v1/chat
+
+**설명:** 챗봇 세션 생성 및 일반 응답
 
 **Headers:**
 ```
@@ -982,35 +975,8 @@ Authorization: Bearer {access_token}
 **Request:**
 ```json
 {
-  "context_type": "guide_result",
-  "context_id": 789
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "session_id": "session-abc-123",
   "context_type": "guide_result",
   "context_id": 789,
-  "created_at": "2026-02-25T11:00:00Z"
-}
-```
-
----
-
-#### POST /api/chat/sessions/{session_id}/messages
-
-**설명:** 챗봇에 질문 전송
-
-**Headers:**
-```
-Authorization: Bearer {access_token}
-```
-
-**Request:**
-```json
-{
   "message": "이부프로펜 먹으면 어지러운데 운동해도 되나요?"
 }
 ```
@@ -1018,30 +984,20 @@ Authorization: Bearer {access_token}
 **Response (200 OK):**
 ```json
 {
-  "message_id": "msg-abc-123",
   "session_id": "session-abc-123",
+  "message_id": "msg-abc-123",
   "role": "assistant",
-  "content": "이부프로펜은 어지러움을 유발할 수 있습니다.\n골다공증 환자분께서는 낙상 위험이 높으므로,\n약 복용 후 30분간은 운동을 피하시고,\n바닥에 앉아서 하는 운동(큐세팅)을 권장합니다.\n\n⚠️ 정확한 진단은 의사와 상담하세요.",
+  "content": "이부프로펜은 어지러움을 유발할 수 있습니다...",
   "created_at": "2026-02-25T11:01:00Z",
   "latency_ms": 2341
 }
 ```
 
-**Error Responses:**
-
-**500 Internal Server Error (LLM 실패):**
-```json
-{
-  "error_code": "LLM_001",
-  "message": "분석 중 오류 발생. 다시 시도해주세요"
-}
-```
-
 ---
 
-#### POST /api/chat/messages/{message_id}/feedback
+#### POST /api/v1/chat/stream
 
-**설명:** 챗봇 응답 피드백
+**설명:** 챗봇 SSE 스트리밍 응답 (별도 엔드포인트)
 
 **Headers:**
 ```
@@ -1051,20 +1007,48 @@ Authorization: Bearer {access_token}
 **Request:**
 ```json
 {
-  "feedback": "positive"
+  "session_id": "session-abc-123",
+  "message": "큐세팅은 어떻게 하나요?"
 }
+```
+
+**Response: SSE 스트리밍**
+```
+data: {"chunk": "큐세팅은"}\n\n
+data: {"chunk": " 무릎 재활의"}\n\n
+data: {"chunk": " 기본 운동입니다."}\n\n
+data: {"done": true}\n\n
+```
+
+---
+
+#### GET /api/v1/chat/sessions
+
+**설명:** 채팅 세션 목록 조회
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
 ```
 
 **Response (200 OK):**
 ```json
 {
-  "message": "피드백이 저장되었습니다. 감사합니다!"
+  "sessions": [
+    {
+      "session_id": "session-abc-123",
+      "context_type": "guide_result",
+      "context_id": 789,
+      "session_status": "active",
+      "created_at": "2026-02-25T11:00:00Z"
+    }
+  ]
 }
 ```
 
 ---
 
-#### GET /api/chat/sessions/{session_id}/messages
+#### GET /api/v1/chat/sessions/{session_id}/messages
 
 **설명:** 채팅 세션 메시지 이력 조회
 
@@ -1088,8 +1072,7 @@ Authorization: Bearer {access_token}
       "message_id": "msg-002",
       "role": "assistant",
       "content": "이부프로펜은 어지러움을 유발할 수 있습니다...",
-      "created_at": "2026-02-25T11:01:00Z",
-      "feedback": "positive"
+      "created_at": "2026-02-25T11:01:00Z"
     }
   ]
 }
@@ -1097,11 +1080,9 @@ Authorization: Bearer {access_token}
 
 ---
 
-### 2.5 대시보드 (Dashboard)
+#### PATCH /api/v1/chat/sessions/{session_id}/end
 
-#### GET /api/dashboard
-
-**설명:** 대시보드 데이터 조회
+**설명:** 채팅 세션 종료
 
 **Headers:**
 ```
@@ -1111,1202 +1092,80 @@ Authorization: Bearer {access_token}
 **Response (200 OK):**
 ```json
 {
-  "user": {
-    "id": 1,
-    "name": "홍길동"
-  },
-  "safety_score": 85,
-  "latest_guide_result": {
-    "guide_result_id": 789,
-    "created_at": "2026-02-25T10:30:00Z",
-    "drug_interaction_count": 2,
-    "high_severity_count": 0,
-    "medium_severity_count": 2
-  },
-  "rehab_progress": {
-    "current_week": 2,
-    "total_weeks": 4,
-    "completed_exercises": 8,
-    "total_exercises": 15,
-    "completion_rate": 0.53
-  }
+  "message": "세션이 종료되었습니다"
 }
 ```
 
 ---
 
-#### GET /api/dashboard/history
+### 2.7 피드백 (Feedback)
 
-**설명:** 분석 이력 조회
+#### POST /api/v1/feedback
+
+**설명:** 피드백 제출 (챗봇 응답, 분석 결과, 재활 플랜 모두 이 엔드포인트 사용)
 
 **Headers:**
 ```
 Authorization: Bearer {access_token}
 ```
 
-**Query Parameters:**
+**Request:**
+```json
+{
+  "target_type": "chat_message",
+  "target_id": 123,
+  "rating": 5,
+  "latency_ms": 2341
+}
 ```
-?page=1&limit=10
+
+**Response (201 Created):**
+```json
+{
+  "message": "피드백이 저장되었습니다. 감사합니다!"
+}
+```
+
+---
+
+#### GET /api/v1/feedback
+
+**설명:** 피드백 목록 조회
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
 ```
 
 **Response (200 OK):**
 ```json
 {
-  "total": 25,
-  "page": 1,
-  "limit": 10,
-  "results": [
+  "feedbacks": [
     {
-      "guide_result_id": 789,
-      "created_at": "2026-02-25T10:30:00Z",
-      "medication_count": 5,
-      "interaction_count": 2,
-      "target_area": "무릎"
-    },
-    {
-      "guide_result_id": 788,
-      "created_at": "2026-02-20T14:20:00Z",
-      "medication_count": 4,
-      "interaction_count": 1,
-      "target_area": "손목"
+      "id": 1,
+      "target_type": "chat_message",
+      "target_id": 123,
+      "rating": 5,
+      "latency_ms": 2341,
+      "created_at": "2026-02-25T11:05:00Z"
     }
   ]
 }
 ```
-
----
-
-## 3. 화면별 UI 요구사항 (웹 레이아웃)
-
-### 3.0 전체 레이아웃 구조
-
-**기본 레이아웃 (로그인 후):**
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Header (고정, 높이 64px)                                                     │
-│  ┌──────────────┐                                        [홍길동 ▼] [로그아웃]  │
-│  │ ChronicCare  │                                                           │
-│  │ Ortho        │                                                           │
-│  └──────────────┘                                                           │
-├──────────────┬──────────────────────────────────────────────────────────────┤
-│              │                                                              │
-│  Sidebar     │  Main Content Area                                           │
-│  (240px)     │  (나머지 영역, 최대 1200px 중앙 정렬)                              │
-│              │                                                              │
-│  • 대시보드    │  ┌─────────────────────────────────────────────────────┐     │
-│  • 처방전      │  │                                                     │    │
-│    분석       │  │                                                     │    │
-│  • 복약       │  │         페이지별 컨텐츠                                 │    │
-│    시간표      │  │                                                     │    │
-│  • 재활       │  │                                                     │    │
-│    플랜       │  │                                                     │    │
-│  • 챗봇       │  └─────────────────────────────────────────────────────┘    │
-│  • 이력       │                                                              │
-│              │                                                              │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 고정 헤더 (64px, 흰색 배경, 하단 그림자)
-- [ ] 좌측 사이드바 (240px, 회색 배경)
-- [ ] 메인 콘텐츠 영역 (최대 너비 1200px, 중앙 정렬)
-- [ ] 반응형: 태블릿(768px) 이하에서 사이드바 햄버거 메뉴로 변경
-
----
-
-### 3.1 회원가입 화면 (/register)
-
-**레이아웃 (중앙 카드형):**
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│                                                                             │
-│                    ┌──────────────────────────────────┐                     │
-│                    │                                  │                     │
-│                    │   ChronicCare Ortho 로고          │                     │
-│                    │   만성질환자 맞춤 케어 시스템           │                     │
-│                    │                                  │                     │
-│                    │   이메일                          │                     │
-│                    │   ┌────────────────────────┐    │                     │
-│                    │   │ user@example.com       │    │                     │
-│                    │   └────────────────────────┘    │                     │
-│                    │                                 │                     │
-│                    │   비밀번호                        │                     │
-│                    │   ┌────────────────────────┐    │                     │
-│                    │   │ ••••••••          👁   │    │                     │
-│                    │   └────────────────────────┘    │                     │
-│                    │   ✅ 8자 이상                     │                     │
-│                    │   ✅ 영문 포함                    │                     │
-│                    │   ❌ 숫자 포함                    │                     │
-│                    │                                 │                     │
-│                    │   비밀번호 확인                    │                     │
-│                    │   ┌────────────────────────┐    │                     │
-│                    │   │ ••••••••          👁   │    │                     │
-│                    │   └────────────────────────┘    │                     │
-│                    │   ✅ 비밀번호 일치                 │                     │
-│                    │                                 │                     │
-│                    │   ┌────────────────────────┐    │                     │
-│                    │   │     회원가입             │    │                     │
-│                    │   └────────────────────────┘    │                     │
-│                    │                                  │                     │
-│                    │   이미 계정이 있으신가요? 로그인        │                     │
-│                    │                                  │                     │
-│                    └──────────────────────────────────┘                     │
-│                                                                             │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 중앙 카드 (최대 너비 400px, 흰색 배경, 그림자)
-- [ ] 로고 이미지 (중앙 정렬)
-- [ ] 이메일 입력 필드 (`type="email"`, `autocomplete="email"`)
-- [ ] 비밀번호 입력 필드 (`type="password"`, 표시/숨김 토글)
-- [ ] 비밀번호 확인 필드
-- [ ] 실시간 비밀번호 강도 표시 (체크리스트)
-- [ ] 회원가입 버튼 (Primary, 전체 너비, 높이 48px)
-- [ ] 로그인 링크
-
-**스타일:**
-- 배경: 연한 회색 (`#F5F5F5`)
-- 카드: 흰색, 패딩 40px, 둥근 모서리 8px
-- 버튼: 파란색 (`#3B82F6`), 호버 시 진한 파란색
-
-**반응형:**
-- 데스크톱: 카드 너비 400px
-- 태블릿: 카드 너비 90%, 최대 400px
-- 모바일: 카드 전체 화면, 패딩 16px
-
----
-
-### 3.2 로그인 화면 (/login)
-
-**레이아웃 (회원가입과 동일한 중앙 카드형):**
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│                    ┌──────────────────────────────────┐                     │
-│                    │                                  │                     │
-│                    │   ChronicCare Ortho 로고          │                     │
-│                    │                                  │                     │
-│                    │   이메일                           │                     │
-│                    │   ┌────────────────────────┐     │                     │
-│                    │   │ user@example.com       │     │                     │
-│                    │   └────────────────────────┘     │                     │
-│                    │                                  │                     │
-│                    │   비밀번호                         │                     │
-│                    │   ┌────────────────────────┐     │                     │
-│                    │   │ ••••••••          👁   │     │                     │
-│                    │   └────────────────────────┘     │                     │
-│                    │                                  │                     │
-│                    │   ┌────────────────────────┐     │                     │
-│                    │   │     로그인               │     │                     │
-│                    │   └────────────────────────┘     │                     │
-│                    │                                  │                     │
-│                    │   공용 PC 사용 시 로그아웃 필수        │                     │
-│                    │   계정이 없으신가요? 회원가입           │                     │
-│                    │                                  │                     │
-│                    └──────────────────────────────────┘                     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 로그인 버튼 아래에 보안 안내 문구 (작은 글씨, 회색)
-
----
-
-### 3.3 온보딩 - 기저질환 선택 (/onboarding/conditions)
-
-**레이아웃 (중앙 정렬, 넓은 화면):**
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│         1/3 단계                                                             │
-│         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                     │
-│                                                                             │
-│         기저질환을 선택해주세요                                                   │
-│         (복수 선택 가능)                                                       │
-│                                                                             │
-│        ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐     │
-│        │                  │  │                  │  │                  │     │
-│        │   🩺 당뇨병        │  │   ❤️ 고혈압       │  │   🦴 골다공증      │     │
-│        │                  │  │                  │  │                  │     │
-│        │  제2형 당뇨,       │  │  혈압 조절 약물      │  │  뼈 건강 관리      │     │
-│        │  인슐린 치료 등     │  │  복용 중           │  │  필요             │     │
-│        │                  │  │                  │  │                  │     │
-│        └──────────────────┘  └──────────────────┘  └──────────────────┘     │
-│                                                                             │
-│                         ┌────────────────────────┐                          │
-│                         │       다음              │                          │
-│                         └────────────────────────┘                          │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 진행 상태 표시 (1/3 단계, 프로그레스 바)
-- [ ] 제목 및 설명 (중앙 정렬)
-- [ ] 질환 선택 카드 3개 (가로 배치, 각 300px)
-- [ ] 각 카드: 이모지, 질환명, 설명
-- [ ] 선택 시 파란색 테두리 (2px)
-- [ ] 다음 버튼 (중앙, 너비 300px)
-
-**인터랙션:**
-- 카드 클릭 → 선택/해제 토글
-- 선택 시 체크 아이콘 우측 상단 표시
-- 1개 이상 선택 → 다음 버튼 활성화
-
-**반응형:**
-- 데스크톱: 3단 가로 배치
-- 태블릿: 2단 배치
-- 모바일: 1단 세로 배치
-
----
-
-### 3.4 온보딩 - 기존 약물 입력 (/onboarding/medications)
-
-**레이아웃:**
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│         2/3 단계                                                             │
-│         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                     │
-│                                                                             │
-│         현재 복용 중인 약물을 입력해주세요                                          │
-│                                                                             │
-│        ┌────────────────────────────────────────────────────────────┐       │
-│        │  약품명: 메트포르민     용량: 500mg     복용: 아침, 저녁            │       │
-│        │  [수정] [삭제]                                               │       │
-│        └────────────────────────────────────────────────────────────┘       │
-│                                                                             │
-│        ┌────────────────────────────────────────────────────────────┐       │
-│        │  약품명: 알렌드로네이트  용량: 70mg     복용: 아침                  │       │
-│        │  [수정] [삭제]                                               │       │
-│        └────────────────────────────────────────────────────────────┘       │
-│                                                                             │
-│         + 약물 추가                                                           │
-│                                                                             │
-│                     ┌────────────────────────┐                              │
-│                     │         다음            │                              │
-│                     └────────────────────────┘                              │
-│                                                                             │
-│                         건너뛰기 (나중에 입력)                                   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 진행 상태 (2/3 단계)
-- [ ] 약물 카드 리스트 (최대 너비 800px)
-- [ ] 각 카드: 약품명, 용량, 복용 시간 (가로 배치)
-- [ ] 수정/삭제 버튼 (우측)
-- [ ] 약물 추가 버튼 (+ 아이콘, 텍스트 버튼)
-- [ ] 다음 버튼
-- [ ] 건너뛰기 링크
-
-**약물 추가 모달:**
-```
-┌───────────────────────────────────────┐
-│  약물 추가                              │
-│                                       │
-│  약품명                                 │
-│  ┌─────────────────────────────┐      │
-│  │ 메트포르민                     │      │
-│  └─────────────────────────────┘      │
-│  (자동완성 드롭다운)                      │
-│                                       │
-│  용량                                  │
-│  ┌─────────────────────────────┐      │
-│  │ 500mg                        │     │
-│  └─────────────────────────────┘      │
-│                                       │
-│  복용 시간                              │
-│  ☑️ 아침  ☐ 점심  ☑️ 저녁  ☐ 취침전        │
-│                                       │
-│    [취소]              [저장]           │
-└───────────────────────────────────────┘
-```
-
----
-
-### 3.5 대시보드 (/dashboard)
-
-**레이아웃 (사이드바 + 메인 콘텐츠):**
-
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  대시보드                                                      │
-│  Sidebar     │                                                              │
-│              │  ┌─────────────────┐  ┌─────────────────┐                    │
-│  • 대시보드    │  │ 안전 점수         │  │ 최근 분석          │                    │
-│  • 처방전     │  │                  │  │                 │                    │
-│    분석       │  │      85         │  │  2026-02-25      │                   │
-│  • 복약       │  │      😊         │  │   약물 5개        │                   │
-│    시간표     │  │                  │  │   상호작용 2건     │                   │
-│  • 재활       │  │  [자세히 보기]     │  │   [결과 보기]     │                    │
-│    플랜       │  └─────────────────┘  └─────────────────┘                    │
-│  • 챗봇       │                                                              │
-│  • 이력       │  ┌─────────────────────────────────────────────────────┐     │
-│              │  │ 재활 진행 상황                                         │     │
-│              │  │                                                     │     │
-│              │  │ 2주차 / 4주차                                         │     │
-│              │  │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━     │     │
-│              │  │ 50%                                                 │     │
-│              │  │                                                     │     │
-│              │  │ 완료한 운동: 8 / 15                                    │     │
-│              │  │                                                     │     │
-│              │  └─────────────────────────────────────────────────────┘     │
-│              │                                                              │
-│              │  ┌─────────────────────────────────────────────────────┐     │
-│              │  │ 💬 궁금한 점이 있으신가요?                               │     │
-│              │  │    챗봇에게 물어보세요                                   │     │
-│              │  │                                                     │     │
-│              │  │    [챗봇 시작하기]                                     │     │
-│              │  └─────────────────────────────────────────────────────┘     │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 2단 그리드 레이아웃 (상단 카드 2개)
-- [ ] 안전 점수 카드 (좌측)
-- [ ] 최근 분석 카드 (우측)
-- [ ] 재활 진행 상황 카드 (전체 너비)
-- [ ] 챗봇 안내 카드 (전체 너비)
-
-**카드 스타일:**
-- 흰색 배경, 패딩 24px
-- 둥근 모서리 8px, 그림자
-
----
-
-### 3.6 처방전 업로드 (/prescription/upload)
-
-**레이아웃:**
-
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  처방전 업로드                                                  │
-│  Sidebar     │                                                              │
-│              │  ┌─────────────────────────────────────────────────────┐     │
-│              │  │                                                     │     │
-│              │  │                                                     │     │
-│              │  │                    📷                               │     │
-│              │  │                                                     │     │
-│              │  │         처방전 이미지를 드래그하거나                       │     │
-│              │  │         클릭하여 업로드하세요                            │     │
-│              │  │                                                     │    │
-│              │  │         (JPEG/PNG, 10MB 이하)                        │    │
-│              │  │                                                     │    │
-│              │  │                                                     │    │
-│              │  └─────────────────────────────────────────────────────┘    │
-│              │                                                             │
-│              │  💡 촬영 팁:                                                  │
-│              │  • 처방전 전체가 보이도록 촬영하세요                                 │
-│              │  • 조명이 밝은 곳에서 촬영하세요                                    │
-│              │  • 흔들리지 않게 촬영하세요                                        │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 드래그 앤 드롭 영역 (점선 테두리, 높이 400px)
-- [ ] 카메라 아이콘 (중앙)
-- [ ] 안내 텍스트
-- [ ] 촬영 팁 (아이콘 + 리스트)
-
-**업로드 중:**
-```
-┌─────────────────────────────────────────────────────┐
-│                                                     │
-│              🔄 (회전 애니메이션)                       │
-│                                                     │
-│                   업로드 중...                        │
-│                                                     │
-│          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━               │
-│                      75%                            │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
----
-
-### 3.7 OCR 결과 확인 (/prescription/review)
-
-**레이아웃 (2단 레이아웃):**
-
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  처방전 인식 결과                                                │
-│  Sidebar     │  신뢰도: 92%                                                   │
-│              │  ┌──────────────────┐  ┌────────────────────────────────┐    │
-│              │  │                  │  │ 인식된 약물 (3개)                 │    │
-│              │  │  [처방전 이미지]    │  │                                │    │
-│              │  │                  │  │ ┌────────────────────────┐     │    │
-│              │  │                  │  │ │ 💊 이부프로펜정 400mg     │     │    │
-│              │  │                  │  │ │ 1일 3회, 식후            │     │    │
-│              │  │                  │  │ │ 신뢰도: 95%             │     │    │
-│              │  │                  │  │ │ [수정] [삭제]            │     │    │
-│              │  │   (클릭 시 확대     │  │ └────────────────────────┘     │   │
-│              │  │                  │  │ ┌────────────────────────┐    │    │
-│              │  └──────────────────┘  │ │ 💊 에페리손정 50mg        │    │    │
-│              │                        │ │ 1일 2회, 식후            │    │    │
-│              │                        │ │ 신뢰도: 89%             │    │     │
-│              │                        │ │ [수정] [삭제]            │    │    │
-│              │                        │ └────────────────────────┘    │    │
-│              │                        │ ┌────────────────────────┐    │    │
-│              │                        │ │ 💊 란소프라졸캡슐 30mg     │    │    │
-│              │                        │ │ 1일 1회, 아침 식전        │    │     │
-│              │                        │ │ 신뢰도: 91%             │     │    │
-│              │                        │ │ [수정] [삭제]            │     │    │
-│              │                        │ └────────────────────────┘     │    │
-│              │                        │ + 약물 추가                      │    │
-│              │                        └────────────────────────────────┘    │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │                   분석 시작                            │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │  🔒 보안 안내                                          │    │
-│              │  │  업로드된 처방전 이미지는 24시간 후 자동 삭제됩니다.            │     │
-│              │  │  OCR 결과(텍스트)는 계속 보관됩니다.                        │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 좌측: 처방전 이미지 (너비 400px, 고정)
-- [ ] 우측: 인식된 약물 리스트 (스크롤 가능)
-- [ ] 신뢰도 점수 (상단, 색상 구분)
-- [ ] 각 약물 카드: 약품명, 용량, 복용법, 신뢰도
-- [ ] 수정/삭제 버튼 (인라인)
-- [ ] 약물 추가 버튼
-- [ ] 분석 시작 버튼 (하단 고정, 전체 너비)
-- [ ] 보안 안내 배너 (파란색 배경, 상단)
-- [ ] 이미지 썸네일 우측 상단에 "24시간 후 삭제" 라벨
-- [ ] 수정 버튼 클릭 시 인라인 편집 또는 모달
-- [ ] **약물명 수정 시 자동완성 제공** (표준 약물 DB 활용)
-- [ ] 자동완성에 없는 약물은 경고 메시지 표시
-
-
-**신뢰도 색상:**
-- 90% 이상: 초록색 (`#10B981`)
-- 70-90%: 노란색 (`#F59E0B`)
-- 70% 미만: 빨간색 (`#EF4444`)
-
-**신뢰도 낮은 경우 (< 70%):**
-```
-┌──────────────────────────────────────────────────────────────┐
-│ ⚠️ 인식 정확도가 낮습니다. 약물 정보를 확인해주세요                     │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**수정 모달 (인라인 편집):**
-- 약품명 클릭 → 입력 필드로 변경
-- Enter 키 → 저장
-- Esc 키 → 취소
-
----
-
-### 3.8 분석 로딩 화면 (/analysis/loading)
-
-**레이아웃 (전체 화면 오버레이):**
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│                                                                             │
-│                                                                             │
-│                               🔄 (회전 애니메이션)                              │
-│                                                                             │
-│                                   분석 중입니다...                             │
-│                                                                             │
-│                                약물 상호작용 분석 중                             │
-│                                                                             │
-│               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━               │
-│                                     60%                                     │            │
-│                                                                             │
-│                            잠시만 기다려주세요 (약 15초)                          │
-│                                                                             │
-│                                                                             │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 반투명 배경 오버레이 (`rgba(0, 0, 0, 0.5)`)
-- [ ] 중앙 카드 (흰색, 너비 500px)
-- [ ] 로딩 스피너 (회전 애니메이션)
-- [ ] "분석 중입니다..." 텍스트
-- [ ] 현재 단계 표시
-- [ ] 프로그레스 바 (0~100%)
-- [ ] 예상 소요 시간
-
-**진행 단계:**
-1. "OCR 결과 처리 중..." (0-20%)
-2. "약물 상호작용 분석 중..." (20-60%)
-3. "재활 가이드 생성 중..." (60-90%)
-4. "결과 저장 중..." (90-100%)
-
-**폴링 로직:**
-- **간격:** 3초
-- **최대 시도:** 20회 (총 60초)
-- **중간 알림:** 10회(30초) 시도 후 "분석이 지연되고 있습니다. 조금만 더 기다려주세요" 메시지 표시
-- **타임아웃:** 20회 시도 후에도 완료되지 않으면 타임아웃 처리
-
-**타임아웃 처리:**
-```
-┌─────────────────────────────────────────────────────┐
-│                                                     │
-│                        ⏱️                           │
-│                                                     │
-│                 분석 시간이 초과되었습니다                 │
-│                                                     │
-│               서버가 일시적으로 혼잡할 수 있습니다.          │
-│                 잠시 후 다시 시도해주세요.                │
-│                                                     │
-│              ┌────────────────────────┐             │
-│              │        다시 시도         │             │
-│              └────────────────────────┘             │
-│                                                     │
-│                  [대시보드로 돌아가기]                   │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
-**구현 예시 (React):**
-```javascript
-const [pollCount, setPollCount] = useState(0);
-const MAX_POLL_COUNT = 20;
-
-useEffect(() => {
-  const interval = setInterval(async () => {
-    if (pollCount >= MAX_POLL_COUNT) {
-      clearInterval(interval);
-      setError('분석 시간이 초과되었습니다. 다시 시도해주세요.');
-      return;
-    }
-
-    const status = await fetchAnalysisStatus(taskId);
-    
-    if (status.status === 'completed') {
-      clearInterval(interval);
-      navigate(`/analysis/results/${status.guide_result_id}`);
-    } else if (status.status === 'failed') {
-      clearInterval(interval);
-      setError(status.message);
-    } else if (pollCount === 10) {
-      setMessage('분석이 지연되고 있습니다. 조금만 더 기다려주세요.');
-    }
-
-    setPollCount(prev => prev + 1);
-  }, 3000);
-
-  return () => clearInterval(interval);
-}, [pollCount, taskId]);
-```
-
----
-
-### 3.9 분석 결과 화면 (/analysis/results/{guide_result_id})
-
-**레이아웃 (탭 + 2단 그리드):**
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  분석 결과                                                     │
-│  Sidebar     │  2026년 2월 25일 10:30                                        │
-│              │                                                              │
-│              │  [약물 상호작용] [복약 시간표] [재활 플랜]                           │
-│              │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━     │
-│              │                                                              │
-│              │  약물 상호작용 (2건)                                             │
-│              │                                                              │
-│              │  ┌──────────────────────┐  ┌──────────────────────┐          │
-│              │  │ ⚠️ 주의 필요           │  │ ⚠️ 주의 필요           │          │
-│              │  │                      │  │                      │          │
-│              │  │ 메트포르민 ↔            │  │ 알렌드로네이트 ↔         │         │
-│              │  │ 이부프로펜              │  │ 란소프라졸              │         │
-│              │  │                      │  │                      │         │
-│              │  │ 신장 기능 저하 위험      │  │ 흡수율 감소 위험         │         │
-│              │  │                      │  │                      │         │
-│              │  │ 복용 중 신장 기능        │  │ 30분 간격 복용 권장      │         │
-│              │  │ 체크 권장              │  │                      │         │
-│              │  │                      │  │                      │         │
-│              │  │ [자세히 보기]           │  │ [자세히 보기]           │         │
-│              │  └──────────────────────┘  └──────────────────────┘          │
-│              │                                                              │
-│              │  ⚠️ 정확한 진단은 의사와 상담하세요                                  │
-│              │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 💬 궁금한 점이 있으신가요? 챗봇에게 물어보세요                 │    │
-│              │  │    [챗봇 시작하기]                                      │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 탭 네비게이션 (약물 상호작용 / 복약 시간표 / 재활 플랜)
-- [ ] 날짜 표시 (상단 우측)
-- [ ] 2단 그리드 레이아웃 (상호작용 카드)
-- [ ] 각 카드: 위험도, 약물 조합, 원리, 권장사항
-- [ ] 자세히 보기 버튼 → 모달
-- [ ] 면책 문구 (하단)
-- [ ] 챗봇 안내 카드
-
-**위험도 색상:**
-- High: 빨간색 배경 (`#FEE2E2`), 빨간색 테두리
-- Medium: 노란색 배경 (`#FEF3C7`), 노란색 테두리
-- Low: 초록색 배경 (`#D1FAE5`), 초록색 테두리
-
-**상호작용 없는 경우:**
-```
-┌──────────────────────────────────────────────────────┐
-│ ✅ 안전                                               │
-│                                                      │
-│ 약물 간 상호작용이 발견되지 않았습니다.                       │
-│ 안전하게 복용하실 수 있습니다.                              │
-│                                                      │
-│ ⚠️ 정확한 진단은 의사와 상담하세요                           │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-### 3.10 복약 시간표 화면 (탭 전환)
-
-**레이아웃:**
-
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  분석 결과                                                     │
-│  Sidebar     │  2026년 2월 25일 10:30                           [PDF 다운로드]  │
-│              │                                                              │
-│              │  [약물 상호작용] [복약 시간표] [재활 플랜]                           │
-│              │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                     │
-│              │                                                              │
-│              │  복약 시간표                                                    │
-│              │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 🌅 아침 식후 (08:00)                                   │    │
-│              │  │                                                      │    │
-│              │  │ • 메트포르민 500mg                                      │    │
-│              │  │ • 이부프로펜 400mg                                      │    │
-│              │  │ • 란소프라졸 30mg (식전 30분)                             │    │
-│              │  │                                                      │    │
-│              │  │ 💡 물 한 컵과 함께 복용하세요                              │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 🌞 점심 식후 (12:00)                                   │    │
-│              │  │                                                      │    │
-│              │  │ • 이부프로펜 400mg                                      │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 🌆 저녁 식후 (18:00)                                   │    │
-│              │  │                                                      │    │
-│              │  │ • 메트포르민 500mg                                      │    │
-│              │  │ • 이부프로펜 400mg                                      │    │
-│              │  │ • 에페리손 50mg                                        │    │
-│              │  │                                                      │    │
-│              │  │ 💡 에페리손은 졸음을 유발할 수 있습니다                       │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 🌙 취침 전 (22:00)                                     │   │
-│              │  │                                                      │    │
-│              │  │ • 알렌드로네이트 70mg (일주일에 1회, 일요일)                 │    │
-│              │  │                                                      │    │
-│              │  │ 💡 복용 후 30분간 눕지 마세요                             │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] PDF 다운로드 버튼 (우측 상단)
-- [ ] 시간대별 카드 (아침/점심/저녁/취침 전)
-- [ ] 각 카드: 이모지, 시간, 약물 리스트
-- [ ] 특별 주의사항 (💡 아이콘)
-- [ ] 복용법 표시 (식전/식후)
-
-**PDF 다운로드 기능:**
-- 버튼 클릭 → 브라우저 인쇄 다이얼로그
-- 또는 서버에서 PDF 생성 후 다운로드
-
----
-
-### 3.11 재활 플랜 화면 (탭 전환)
-
-**레이아웃:**
-
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  분석 결과                                                     │
-│  Sidebar     │  2026년 2월 25일 10:30                                        │
-│              │                                                              │
-│              │  [약물 상호작용] [복약 시간표] [재활 플랜]                           │
-│              │  ━━━━━━━━━━━━━━━━━━━━━━━━━━                                  │
-│              │                                                              │
-│              │  재활 운동 프로그램                                              │
-│              │  목표: 무릎 가동범위 120도 회복 (4주 프로그램)                        │
-│              │                                                              │
-│              │  [1주차] [2주차] [3주차] [4주차]                                  │
-│              │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━     │
-│              │                                                              │
-│              │  1주차 운동 (5개)                                               │
-│              │                                                              │
-│              │  ┌──────────────────────┐  ┌──────────────────────┐         │
-│              │  │  큐세팅                │  │  발목 펌프             │         │
-│              │  │                      │  │                      │         │
-│              │  │ 3세트 x 10회           │  │ 3세트 x 15회          │         │
-│              │  │                      │  │                      │         │
-│              │  │ [당뇨안전] [저강도]      │  │ [당뇨안전]             │         │
-│              │  │                      │  │                      │         │
-│              │  │    당뇨 환자 상처       │  │                      │         │
-│              │  │    체크 후 시작         │  │                      │         │
-│              │  │                      │  │                      │         │
-│              │  │ [영상 보기] [완료]      │  │ [영상 보기] [완료]       │         │
-│              │  └──────────────────────┘  └──────────────────────┘         │
-│              │                                                             │
-│              │  ┌──────────────────────┐  ┌──────────────────────┐         │
-│              │  │  SLR                 │  │    무릎 굽히기          │         │
-│              │  │  (무릎 펴고 다리 들기)   │  │                       │         │
-│              │  │                      │  │   3세트 x 10회         │         │
-│              │  │ 3세트 x 10회          │  │                       │         │
-│              │  │                      │  │   [저강도]             │         │
-│              │  │   [중강도]             │  │                      │         │
-│              │  │                      │  │                      │         │
-│              │  │   [영상 보기] [완료]    │  │   [영상 보기] [완료]     │         │
-│              │  └──────────────────────┘  └──────────────────────┘          │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 목표 표시 (상단)
-- [ ] 주차별 탭 (1~4주차)
-- [ ] 2단 그리드 레이아웃 (운동 카드)
-- [ ] 각 카드: 운동명, 세트/횟수, 태그, 주의사항
-- [ ] 영상 보기 버튼 → 새 탭에서 유튜브
-- [ ] 완료 체크박스
-
-**태그 색상:**
-- [당뇨안전]: 초록색
-- [저강도]: 파란색
-- [중강도]: 노란색
-- [고강도]: 빨간색
-
-**운동 완료 시:**
-- 체크박스 선택 → 카드 회색 처리
-- 완료율 표시 (예: 3/5 완료)
-
----
-
-### 3.12 챗봇 화면 (/chat)
-
-**레이아웃 (우측 사이드바 또는 전체 화면):**
-
-**Option 1: 우측 사이드바 (추천):**
-
-```
-┌──────────────┬───────────────────────────┬──────────────────────────────────┐
-│              │                           │  💬 AI 상담 챗봇                   │
-│  Sidebar     │  Main Content             │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━    │
-│              │                           │                                  │
-│              │  (분석 결과 화면)            │  [대화 내역]                        │
-│              │                           │                                  │
-│              │                           │  👤 이부프로펜 먹으면                 │
-│              │                           │     어지러운데 운동해도 되나요?         │
-│              │                           │                                  │
-│              │                           │  🤖 이부프로펜은 어지러움을            │
-│              │                           │     유발할 수 있습니다.               │
-│              │                           │     골다공증 환자분께서는              │
-│              │                           │     낙상 위험이 높으므로,             │
-│              │                           │     약 복용 후 30분간은              │
-│              │                           │     운동을 피하시고...               │
-│              │                           │                                  │
-│              │                           │     ⚠️ 정확한 진단은 의사와           │
-│              │                           │        상담하세요                   │
-│              │                           │                                  │
-│              │                           │     👍 👎                        │
-│              │                           │                                  │
-│              │                           │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━    │
-│              │                           │  ┌────────────────────────────┐  │
-│              │                           │  │ 질문을 입력하세요...           │  │
-│              │                           │  └────────────────────────────┘  │
-│              │                           │    [전송]                         │
-│              │                           │                                  │
-└──────────────┴───────────────────────────┴──────────────────────────────────┘
-```
-
-**Option 2: 전체 화면:**
-
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  💬 AI 상담 챗봇                                               │
-│  Sidebar     │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ [대화 내역 - 스크롤 가능]                                 │    │
-│              │  │                                                      │    │
-│              │  │ 👤 이부프로펜 먹으면 어지러운데 운동해도 되나요?                │    │
-│              │  │                                                      │    │
-│              │  │ 🤖 이부프로펜은 어지러움을 유발할 수 있습니다.                 │    │
-│              │  │    골다공증 환자분께서는 낙상 위험이 높으므로,                 │    │
-│              │  │    약 복용 후 30분간은 운동을 피하시고,                      │   │
-│              │  │    바닥에 앉아서 하는 운동(큐세팅)을 권장합니다.                │   │
-│              │  │                                                      │    │
-│              │  │    ⚠️ 정확한 진단은 의사와 상담하세요                        │   │
-│              │  │                                                      │    │
-│              │  │    👍 👎                                             │   │
-│              │  │                                                      │    │
-│              │  │ 👤 큐세팅은 어떻게 하나요?                                │    │
-│              │  │                                                      │    │
-│              │  │ 🤖 (타이핑 중...)                                      │    │
-│              │  │                                                      │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 질문을 입력하세요...                                     │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │  [전송]                                                       │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 대화 내역 영역 (스크롤 가능)
-- [ ] 사용자 메시지 (우측 정렬, 파란색 배경)
-- [ ] 챗봇 메시지 (좌측 정렬, 회색 배경)
-- [ ] 면책 문구 (모든 답변에 자동 추가)
-- [ ] 좋아요/싫어요 버튼 (각 답변마다)
-- [ ] 입력 필드 (하단 고정)
-- [ ] 전송 버튼
-
-**타이핑 중 표시:**
-```
-🤖 (타이핑 중...)
- ● ● ●  (애니메이션)
-```
-
-**컨텍스트 인식 표시:**
-```
-┌──────────────────────────────────────────────────────┐
-│ 💡 현재 보고 계신 분석 결과를 참고하여 답변합니다               │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-### 3.13 분석 이력 화면 (/history)
-
-**레이아웃 (테이블형):**
-
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  분석 이력                                                     │
-│              │  ※ 보안 정책에 따라 24시간이 지난 처방전 이미지는 표시되지 않습니다.        │
-│  Sidebar     │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 날짜            │ 약물 │ 상호작용   │ 부위   │ 상세         │    │
-│              │  ├──────────────────────────────────────────────────────┤    │
-│              │  │ 2026-02-25     │ 5개  │ 2건      │ 무릎   │ [보기]      │    │
-│              │  │ 10:30          │      │ (주의 2) │       │            │    │
-│              │  ├──────────────────────────────────────────────────────┤    │
-│              │  │ 2026-02-20     │ 4개  │ 1건      │ 손목   │ [보기]      │    │
-│              │  │ 14:20          │      │ (주의 1) │       │            │    │
-│              │  ├──────────────────────────────────────────────────────┤    │
-│              │  │ 2026-02-15     │ 3개  │ 0건      │ 허리   │ [보기]      │    │
-│              │  │ 09:15          │      │ (안전)   │       │            │    │
-│              │  ├──────────────────────────────────────────────────────┤    │
-│              │  │ 2026-02-10     │ 6개  │ 3건      │ 무릎   │ [보기]      │    │
-│              │  │ 16:45          │      │ (주의 3) │       │            │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-│              │  ┌────────────────────────────────────────────────────┐      │
-│              │  │  [이전]  1 2 3 4 5  [다음]                           │      │
-│              │  └────────────────────────────────────────────────────┘      │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 테이블 레이아웃 (날짜, 약물 개수, 상호작용, 부위, 상세)
-- [ ] 최신순 정렬
-- [ ] 상호작용 건수에 따른 색상 (안전: 초록, 주의: 노랑, 위험: 빨강)
-- [ ] 보기 버튼 → 상세 페이지로 이동
-- [ ] 페이지네이션 (하단)
-
-**반응형:**
-- 데스크톱: 테이블
-- 모바일: 카드형 리스트
-
-### 3.13.1 이력 상세 화면 (24시간 경과 후)
-
-**레이아웃:**
-```
-┌──────────────┬──────────────────────────────────────────────────────────────┐
-│              │  분석 결과 (2026-02-20)                                        │
-│  Sidebar     │                                                              │
-│              │  ┌──────────────────────────────────────────────────────┐    │
-│              │  │ 🔒 처방전 이미지                                        │    │
-│              │  │                                                      │    │
-│              │  │ [이미지 없음]                                           │    │
-│              │  │                                                      │    │
-│              │  │ 보안을 위해 24시간이 지난 이미지는                           │    │
-│              │  │ 자동 삭제되었습니다.                                      │    │
-│              │  │                                                      │    │
-│              │  │ OCR 결과(텍스트)는 아래에서 확인하실 수 있습니다.               │    │
-│              │  └──────────────────────────────────────────────────────┘    │
-│              │                                                              │
-│              │  인식된 약물 (3개)                                              │
-│              │  • 이부프로펜정 400mg, 1일 3회, 식후                              │
-│              │  • 에페리손정 50mg, 1일 2회, 식후                                 │
-│              │  • 란소프라졸캡슐 30mg, 1일 1회, 아침 식전                          │
-│              │                                                              │
-└──────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-**필수 요소:**
-- [ ] 이미지 영역에 회색 배경 + 자물쇠 아이콘
-- [ ] 안내 문구 (중앙 정렬)
-- [ ] OCR 결과 텍스트 리스트
-
-
----
-
-## 4. 데이터 검증 규칙
-
-### 4.0 검증 원칙
-
-**프론트엔드 우선 검증:**
-- 모든 유효성 검사는 **프론트엔드에서 먼저** 수행합니다.
-- 백엔드는 **최종 방어선**으로, 동일한 검증을 다시 수행합니다.
-- 이를 통해 불필요한 API 호출을 줄이고 사용자 경험을 개선합니다.
-
-**검증 순서:**
-1. **프론트엔드:** 입력 즉시 검증 (실시간 피드백)
-2. **프론트엔드:** 제출 전 최종 검증
-3. **백엔드:** API 요청 시 검증 (보안)
-
-**예시:**
-```javascript
-// 프론트엔드 (React)
-const validateEmail = (email) => {
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!regex.test(email)) {
-    setEmailError('올바른 이메일 형식이 아닙니다');
-    return false;
-  }
-  return true;
-};
-
-// 제출 전 검증
-const handleSubmit = async () => {
-  if (!validateEmail(email)) return;  // 👈 프론트엔드 검증
-  
-  // API 호출
-  const response = await registerUser(email, password);
-};
-```
----
-
-### 4.1 회원가입
-
-| 필드 | 규칙 | 에러 메시지 |
-|------|------|------------|
-| email | 이메일 형식 (RFC 5322) | "올바른 이메일 형식이 아닙니다" |
-| email | 중복 체크 | "이미 가입된 이메일입니다" |
-| email | 최대 길이 255자 | "이메일은 255자 이하여야 합니다" |
-| password | 8자 이상 | "비밀번호는 8자 이상이어야 합니다" |
-| password | 영문 포함 | "영문을 포함해야 합니다" |
-| password | 숫자 포함 | "숫자를 포함해야 합니다" |
-| password | 최대 길이 128자 | "비밀번호는 128자 이하여야 합니다" |
-| password_confirm | password와 일치 | "비밀번호가 일치하지 않습니다" |
-| name | 1자 이상 | "이름을 입력해주세요" |
-| name | 최대 길이 100자 | "이름은 100자 이하여야 합니다" |
-
-**정규식:**
-```javascript
-// 이메일
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// 비밀번호 (영문 + 숫자)
-const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
-```
-
----
-
-### 4.2 처방전 업로드
-
-| 필드 | 규칙 | 에러 메시지 |
-|------|------|------------|
-| file | JPEG/PNG만 허용 | "JPEG 또는 PNG 파일만 가능합니다" |
-| file | 10MB 이하 | "파일 크기는 10MB 이하여야 합니다" |
-| file | 최소 해상도 800x600 | "이미지 해상도가 너무 낮습니다" |
-| file | 최대 해상도 4000x4000 | "이미지 해상도가 너무 높습니다" |
-
-**MIME 타입:**
-```javascript
-const allowedTypes = ['image/jpeg', 'image/png'];
-```
-
----
-
-### 4.3 약물 입력
-
-| 필드 | 규칙 | 에러 메시지 |
-|------|------|------------|
-| name | 1자 이상 | "약물명을 입력해주세요" |
-| name | **표준 약물 DB에 존재** | **"등록되지 않은 약물입니다. 자동완성에서 선택해주세요"** |
-| name | 최대 길이 200자 | "약물명은 200자 이하여야 합니다" |
-| dosage | 숫자 + 단위 (mg/g/ml/mcg) | "올바른 용량 형식이 아닙니다 (예: 500mg)" |
-| frequency | 1~4 | "복용 횟수는 1~4회만 가능합니다" |
-| timing | ["morning", "lunch", "evening", "bedtime"] | "올바른 복용 시간이 아닙니다" |
-
-**약물 표준화 프로세스:**
-
-1. **프론트엔드:**
-   - 사용자가 약물명 입력 시 자동완성 제공
-   - 자동완성 데이터는 `GET /api/medications/search?q={query}` 에서 가져옴
-   - 예: "타이레놀" 입력 → ["타이레놀정500mg", "타이레놀정160mg"] 표시
-
-2. **백엔드:**
-   - 입력된 약물명이 표준 약물 DB에 존재하는지 검증
-   - 존재하면 `standardized_name`, `ingredient` 자동 매핑
-   - 존재하지 않으면 400 에러 반환
-
-3. **표준 약물 DB:**
-   - 한국 의약품 안전나라 API 또는 Seed Data 활용
-   - 최소 1,000개 이상의 일반 의약품 포함
-
-**정규식:**
-```javascript
-// 용량 (숫자 + 단위)
-const dosageRegex = /^\d+(\.\d+)?(mg|g|ml|mcg)$/;
-```
-
----
-
-### 4.4 재활 플랜 입력
-
-| 필드 | 규칙 | 에러 메시지 |
-|------|------|------------|
-| target_area | ["knee", "wrist", "back", "shoulder", "ankle"] | "올바른 부위가 아닙니다" |
-| surgery_date | YYYY-MM-DD 형식 | "올바른 날짜 형식이 아닙니다" |
-| surgery_date | 과거 날짜 | "수술일은 과거 날짜여야 합니다" |
-| surgery_date | 최대 1년 전 | "수술일은 1년 이내여야 합니다" |
-
----
-
-## 5. 권한 및 접근 제어
-
-### 5.1 인증 필요 엔드포인트
-
-| 엔드포인트 | 인증 필요 | 권한 | 소유권 검증 |
-|-----------|----------|------|------------|
-| POST /api/auth/register | ❌ | - | - |
-| POST /api/auth/login | ❌ | - | - |
-| GET /api/auth/me | ✅ | User | - |
-| POST /api/profile/chronic-conditions | ✅ | User | ✅ |
-| POST /api/profile/medications | ✅ | User | ✅ |
-| GET /api/profile | ✅ | User | ✅ |
-| POST /api/ocr/upload | ✅ | User | ✅ |
-| PATCH /api/ocr/results/{id} | ✅ | User | ✅ |
-| POST /api/analysis/generate | ✅ | User | ✅ |
-| GET /api/analysis/status/{task_id} | ✅ | User | ✅ |
-| GET /api/analysis/results/{id} | ✅ | User | ✅ |
-| POST /api/chat/sessions | ✅ | User | ✅ |
-| POST /api/chat/sessions/{id}/messages | ✅ | User | ✅ |
-| GET /api/chat/sessions/{id}/messages | ✅ | User | ✅ |
-| POST /api/chat/messages/{id}/feedback | ✅ | User | ✅ |
-| GET /api/dashboard | ✅ | User | ✅ |
-| GET /api/dashboard/history | ✅ | User | ✅ |
-
----
-
-### 5.2 리소스 소유권 검증
-
-**규칙:** 사용자는 자신의 데이터만 조회/수정/삭제 가능
-
-**구현 예시 (FastAPI):**
-
-```python
-# ❌ 나쁜 예 (소유권 검증 없음)
-@router.get("/guide_results/{result_id}")
-def get_result(result_id: int, db: Session = Depends(get_db)):
-    result = db.query(GuideResult).filter_by(id=result_id).first()
-    if not result:
-        raise HTTPException(status_code=404, detail="결과를 찾을 수 없습니다")
-    return result
-
-# ✅ 좋은 예 (소유권 검증)
-@router.get("/guide_results/{result_id}")
-def get_result(
-    result_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    result = db.query(GuideResult).filter_by(
-        id=result_id,
-        user_id=current_user.id  # 👈 소유권 검증
-    ).first()
-    
-    if not result:
-        raise HTTPException(status_code=404, detail="결과를 찾을 수 없습니다")
-    
-    return result
-```
-
----
-
-### 5.3 JWT 토큰 구조
-
-**Payload:**
-```json
-{
-  "sub": "1",
-  "email": "user@example.com",
-  "exp": 1709107200,
-  "iat": 1709020800
-}
-```
-
-**필수 필드:**
-- `sub`: 사용자 ID (문자열)
-- `email`: 사용자 이메일
-- `exp`: 만료 시간 (Unix timestamp)
-- `iat`: 발급 시간 (Unix timestamp)
-
-**토큰 유효기간:**
-- Access Token: 24시간
-- Refresh Token: 7일 (선택 사항)
 
 ---
 
 ## 6. 비기능적 요구사항 상세
-
 ### 6.1 성능
 
-| 항목 | 목표 | 측정 방법 | 검수 기준 |
-|------|------|----------|----------|
-| 페이지 로딩 | 2초 이내 | Lighthouse Performance Score | 90+ |
-| OCR 처리 | 5초 이내 | 평균 응답 시간 (10회 측정) | 평균 5초 이하 |
-| 분석 완료 | 15초 이내 | 평균 응답 시간 (10회 측정) | 평균 15초 이하 |
-| 챗봇 응답 | 3초 이내 | P95 Latency | P95 < 3초 |
-| API 응답 | 1초 이내 | 평균 응답 시간 | 평균 1초 이하 |
-
-**측정 도구:**
-- Lighthouse (Chrome DevTools)
-- FastAPI 내장 로깅
-- DB에 `latency_ms` 필드 저장
+| 항목 | 목표 | 측정 방법 |
+|------|------|----------|
+| 페이지 로딩 | 2초 이내 | Lighthouse Performance Score 90+ |
+| OCR 처리 | 5초 이내 | 평균 응답 시간 (10회 측정) |
+| AI 분석 완료 | 30초 이내 (비동기) | BackgroundTasks 완료 시간 |
+| 챗봇 첫 청크 | 2초 이내 | SSE 첫 chunk 수신 시간 |
+| API 일반 응답 | 200ms 이내 | 평균 응답 시간 |
+| 재활 플랜 조회 | 200ms 이내 | Redis 캐싱 적용 (TTL 1시간) |
 
 ---
 
@@ -2315,16 +1174,12 @@ def get_result(
 | 항목 | 기준 | 검수 방법 |
 |------|------|----------|
 | 색상 대비 | 4.5:1 (일반 텍스트), 3:1 (큰 텍스트) | Chrome DevTools Contrast Checker |
-| 키보드 네비게이션 | 모든 기능 Tab 키로 접근 가능 | 수동 테스트 (마우스 없이) |
+| 키보드 네비게이션 | 모든 기능 Tab 키로 접근 가능 | 수동 테스트 |
 | 포커스 표시 | 포커스된 요소에 명확한 아웃라인 | 시각적 확인 |
 | 대체 텍스트 | 모든 이미지에 alt 속성 | HTML 검증 |
-| ARIA 레이블 | 버튼, 링크에 aria-label 제공 | HTML 검증 |
+| ARIA 레이블 | 버튼·링크에 aria-label 제공 | HTML 검증 |
 | 폰트 크기 | 최소 16px | Chrome DevTools 측정 |
 | 터치 타겟 | 최소 44x44px | Chrome DevTools 측정 |
-
-**스크린 리더 테스트:**
-- NVDA (Windows)
-- VoiceOver (Mac)
 
 ---
 
@@ -2332,21 +1187,15 @@ def get_result(
 
 | 항목 | 요구사항 | 구현 방법 |
 |------|----------|----------|
-| 비밀번호 저장 | 해싱 (bcrypt, Argon2) | `bcrypt.hashpw()` |
+| 비밀번호 저장 | bcrypt 단방향 해시 | `bcrypt.hashpw()` |
 | JWT 토큰 | HS256 알고리즘 | `python-jose` 라이브러리 |
+| 토큰 저장 | sessionStorage | Zustand persist 미들웨어 |
 | HTTPS | 모든 통신 HTTPS | Nginx SSL 인증서 |
 | CORS | 허용된 도메인만 접근 | FastAPI CORS 미들웨어 |
-| SQL Injection | ORM 사용 (SQLAlchemy) | Parameterized Query |
+| SQL Injection | ORM 사용 | SQLAlchemy Parameterized Query |
 | XSS | 입력 값 이스케이프 | React 기본 보호 |
-| CSRF | CSRF 토큰 (선택 사항) | FastAPI CSRF 미들웨어 |
-| 파일 업로드 | MIME 타입 검증, 크기 제한 | `python-magic` 라이브러리 |
-| 이미지 삭제 | 24시간 후 자동 삭제 | AWS S3 Lifecycle 정책 |
-
-**⚠️ 중요:**
-- 처방전 원본 이미지는 보안을 위해 업로드 후 24시간 뒤 자동 삭제됩니다.
-- OCR 결과(텍스트)는 영구 보관되며, 분석 이력에서 조회 가능합니다.
-- 24시간이 지난 분석 결과를 조회할 때는 이미지가 표시되지 않습니다.
-
+| 파일 업로드 | MIME 타입 검증, 크기 제한 | 백엔드 검증 |
+| 이미지 삭제 | 24시간 후 자동 삭제 | 로컬 uploads/ 폴더 스케줄러 |
 
 ---
 
@@ -2354,10 +1203,11 @@ def get_result(
 
 | 항목 | 목표 | 구현 방법 |
 |------|------|----------|
-| 에러 핸들링 | 모든 에러에 명확한 메시지 | 에러 코드 + 메시지 |
-| 재시도 로직 | OCR/LLM 실패 시 3회 재시도 | `tenacity` 라이브러리 |
-| 로깅 | 모든 요청/응답 로깅 | FastAPI 미들웨어 |
-| 모니터링 | 에러율, 응답 시간 모니터링 | Sentry (선택 사항) |
+| Redis 장애 | 서비스 중단 없음 | Graceful Degradation (DB 직접 조회) |
+| OCR 실패 | 3회 재시도 후 수동 입력 유도 | httpx retry 로직 |
+| LLM 실패 | 에러 메시지 반환 | guide_results.status = "failed" |
+| 에러 핸들링 | 모든 에러에 명확한 메시지 | 에러 코드 + 한글 메시지 |
+| Mock 모드 | 외부 API 없이 전체 기능 테스트 | USE_MOCK_OCR / USE_MOCK_ANALYSIS / USE_MOCK_CHAT |
 
 ---
 
@@ -2365,22 +1215,21 @@ def get_result(
 
 ### 7.1 회원가입 테스트
 
-#### 시나리오 1: 정상 회원가입
+#### 시나리오 1: 정상 회원가입 (이메일)
 
-**Given:** 사용자가 회원가입 페이지에 접속  
-**When:** 유효한 이메일, 비밀번호 입력 후 회원가입 버튼 클릭  
+**Given:** 사용자가 회원가입 페이지에 접속
+**When:** 이름·이메일·비밀번호·비밀번호 확인 입력 후 "무료로 시작하기" 클릭
 **Then:**
 - [ ] 회원가입 성공 (201 Created)
-- [ ] JWT 토큰 발급
-- [ ] 자동 로그인
-- [ ] 온보딩 페이지로 리다이렉트
+- [ ] JWT 토큰 발급 → sessionStorage 저장
+- [ ] 건강 프로필 설정 온보딩(1단계)으로 이동
 
 **테스트 데이터:**
 ```json
 {
+  "name": "홍길동",
   "email": "test@example.com",
-  "password": "Password123!",
-  "name": "홍길동"
+  "password": "Password123!"
 }
 ```
 
@@ -2388,8 +1237,8 @@ def get_result(
 
 #### 시나리오 2: 중복 이메일
 
-**Given:** 이미 가입된 이메일 (`test@example.com`)  
-**When:** 동일한 이메일로 회원가입 시도  
+**Given:** 이미 가입된 이메일 (`test@example.com`)
+**When:** 동일한 이메일로 회원가입 시도
 **Then:**
 - [ ] 회원가입 실패 (409 Conflict)
 - [ ] 에러 메시지: "이미 가입된 이메일입니다"
@@ -2399,23 +1248,22 @@ def get_result(
 
 #### 시나리오 3: 비밀번호 불일치
 
-**Given:** 사용자가 회원가입 페이지에 접속  
-**When:** 비밀번호와 비밀번호 확인이 다름  
+**Given:** 사용자가 회원가입 페이지에 접속
+**When:** 비밀번호와 비밀번호 확인이 다름
 **Then:**
 - [ ] 에러 메시지: "비밀번호가 일치하지 않습니다"
-- [ ] 회원가입 버튼 비활성화
-- [ ] 비밀번호 확인 필드에 빨간색 테두리
+- [ ] 무료로 시작하기 버튼 비활성화
 
 ---
 
 #### 시나리오 4: 비밀번호 강도 부족
 
-**Given:** 사용자가 회원가입 페이지에 접속  
-**When:** 비밀번호 "1234" 입력 (8자 미만, 영문 없음)  
+**Given:** 사용자가 회원가입 페이지에 접속
+**When:** 비밀번호 "1234" 입력 (8자 미만, 영문 없음)
 **Then:**
 - [ ] 에러 메시지: "비밀번호는 8자 이상이어야 합니다"
 - [ ] 에러 메시지: "영문을 포함해야 합니다"
-- [ ] 회원가입 버튼 비활성화
+- [ ] 무료로 시작하기 버튼 비활성화
 
 ---
 
@@ -2423,317 +1271,276 @@ def get_result(
 
 #### 시나리오 1: 정상 로그인
 
-**Given:** 가입된 사용자 (`test@example.com` / `Password123!`)  
-**When:** 올바른 이메일, 비밀번호 입력 후 로그인 버튼 클릭  
+**Given:** 가입된 사용자 (`test@example.com` / `Password123!`)
+**When:** 올바른 이메일·비밀번호 입력 후 "이메일로 로그인" 클릭
 **Then:**
 - [ ] 로그인 성공 (200 OK)
-- [ ] JWT 토큰 발급
-- [ ] localStorage에 토큰 저장
-- [ ] 대시보드로 리다이렉트
+- [ ] JWT 토큰 → sessionStorage 저장 (Zustand persist)
+- [ ] 대시보드로 이동
 
 ---
 
 #### 시나리오 2: 잘못된 비밀번호
 
-**Given:** 가입된 사용자 (`test@example.com`)  
-**When:** 잘못된 비밀번호 입력  
-**Then:**
-- [ ] 로그인 실패 (401 Unauthorized)
-- [ ] 에러 메시지: "이메일 또는 비밀번호가 잘못되었습니다"
-- [ ] 입력 필드 초기화
-
----
-
-#### 시나리오 3: 존재하지 않는 이메일
-
-**Given:** 가입되지 않은 이메일 (`notexist@example.com`)  
-**When:** 로그인 시도  
+**Given:** 가입된 사용자
+**When:** 잘못된 비밀번호 입력
 **Then:**
 - [ ] 로그인 실패 (401 Unauthorized)
 - [ ] 에러 메시지: "이메일 또는 비밀번호가 잘못되었습니다"
 
 ---
 
-### 7.3 OCR 테스트
+#### 시나리오 3: 로그아웃
 
-#### 시나리오 1: 고품질 이미지 (신뢰도 90%+)
-
-**Given:** 선명한 처방전 이미지  
-**When:** 이미지 업로드  
+**Given:** 로그인한 사용자
+**When:** 마이페이지 → 로그아웃 버튼 클릭
 **Then:**
-- [ ] OCR 처리 5초 이내 완료
-- [ ] 신뢰도 90% 이상
-- [ ] 약물 정보 정확히 인식 (약품명, 용량, 복용법)
-- [ ] 초록색 신뢰도 표시
-- [ ] 자동으로 다음 단계 진행 가능
-
-**테스트 이미지:**
-- 해상도: 1920x1080
-- 조명: 밝음
-- 흔들림: 없음
+- [ ] sessionStorage에서 토큰 삭제
+- [ ] Zustand store 초기화
+- [ ] 로그인 페이지로 이동
 
 ---
 
-#### 시나리오 2: 저품질 이미지 (신뢰도 70% 미만)
+### 7.3 온보딩 테스트
 
-**Given:** 흐릿한 처방전 이미지  
-**When:** 이미지 업로드  
+#### 시나리오 1: 4단계 전체 완료
+
+**Given:** 신규 가입 사용자
+**When:** 기본정보 → 기저질환 → 복용약 → 알레르기 순서로 입력 후 완료
 **Then:**
-- [ ] OCR 처리 완료
-- [ ] 신뢰도 70% 미만
-- [ ] 빨간색 신뢰도 표시
-- [ ] 경고 메시지: "인식 정확도가 낮습니다. 확인해주세요"
-- [ ] 수동 수정 유도
-
-**테스트 이미지:**
-- 해상도: 800x600
-- 조명: 어두움
-- 흔들림: 있음
+- [ ] health_profiles 테이블 저장 (키·몸무게·혈액형·흡연·음주·운동)
+- [ ] chronic_conditions 테이블 저장
+- [ ] medications 테이블 저장 (standardized_name 자동 생성)
+- [ ] allergies 테이블 저장
+- [ ] 대시보드로 이동
 
 ---
 
-#### 시나리오 3: 파일 크기 초과
+#### 시나리오 2: 기저질환 직접 입력
 
-**Given:** 12MB 이미지 파일  
-**When:** 업로드 시도  
+**Given:** 온보딩 2단계
+**When:** 목록에 없는 질환명 직접 입력 후 추가 버튼 클릭
 **Then:**
-- [ ] 업로드 거부 (400 Bad Request)
-- [ ] 에러 메시지: "이미지 용량은 10MB 이하여야 합니다"
+- [ ] 입력한 질환이 선택 태그로 추가됨
+- [ ] chronic_conditions 테이블에 저장
 
 ---
 
-#### 시나리오 4: 지원하지 않는 파일 형식
+#### 시나리오 3: 복용약 OCR 자동 추출
 
-**Given:** PDF 파일  
-**When:** 업로드 시도  
+**Given:** 온보딩 3단계
+**When:** 처방전 사진 업로드
 **Then:**
-- [ ] 업로드 거부 (400 Bad Request)
-- [ ] 에러 메시지: "JPEG 또는 PNG 파일만 가능합니다"
+- [ ] OCR 처리 완료 (Naver Clova)
+- [ ] 약 이름 자동 인식 후 입력 필드에 채워짐
+- [ ] 사용자가 확인 후 + 약 추가 가능
 
 ---
 
-### 7.4 약물 상호작용 분석 테스트
+### 7.4 처방전 분석 테스트
 
-#### 시나리오 1: 상호작용 있음 (Medium)
+#### 시나리오 1: 정상 분석 플로우
+
+**Given:** 로그인한 사용자, 처방전 이미지 준비
+**When:**
+1. 처방전 분석 페이지 접속
+2. 부위·상황 선택
+3. 처방전 이미지 업로드
+4. AI 분석 시작 클릭
+**Then:**
+- [ ] 파일 uploads/ 폴더 저장
+- [ ] OCR 처리 → ocr_results 저장
+- [ ] BackgroundTasks로 비동기 분석 시작 (202 반환)
+- [ ] 폴링 시작 (3초 간격)
+- [ ] 분석 완료 → 대시보드 분석 이력에 결과 표시
+
+---
+
+#### 시나리오 2: 지원 파일 형식 테스트
+
+**Given:** 다양한 파일 형식 준비
+**When:** 각 파일 업로드 시도
+**Then:**
+
+| 파일 형식 | 결과 |
+|---------|------|
+| JPG | ✅ 업로드 성공 |
+| PNG | ✅ 업로드 성공 |
+| WEBP | ✅ 업로드 성공 |
+| PDF | ✅ 업로드 성공 |
+| GIF | ❌ 에러: "JPG, PNG, WEBP, PDF 파일만 가능합니다" |
+| 11MB JPG | ❌ 에러: "파일 크기는 10MB 이하여야 합니다" |
+
+---
+
+#### 시나리오 3: 분석 타임아웃
+
+**Given:** BackgroundTasks가 응답하지 않는 상황
+**When:** 분석 시작 후 폴링 진행
+**Then:**
+- [ ] 10회(30초) 시도 후 "분석이 지연되고 있습니다" 메시지 표시
+- [ ] 20회(60초) 시도 후 타임아웃 에러 표시
+- [ ] 타임아웃 후 폴링 중단 (무한 루프 방지)
+- [ ] "다시 시도" 버튼 표시
+
+---
+
+### 7.5 재활 운동 테스트
+
+#### 시나리오 1: 고혈압 + 골다공증 환자 손목 분석
 
 **Given:**
-- 기존 약물: 메트포르민 500mg
-- 신규 약물: 이부프로펜 400mg
+- 기저질환: 고혈압, 골다공증
+- 부위: 손목/손
+- 상황: 골절/뼈 부상
 
-**When:** 분석 시작  
+**When:** AI 분석 완료
 **Then:**
-- [ ] 분석 완료 15초 이내
-- [ ] 상호작용 1건 감지
-- [ ] 위험도: Medium (노란색)
-- [ ] 원리: "신장 기능 저하 위험"
-- [ ] 권장사항: "복용 중 신장 기능 체크"
-- [ ] 면책 문구 표시
+- [ ] rehab_plans 테이블 저장 (target_area: "손목")
+- [ ] rehab_exercises 테이블 저장 (exercise_library 매핑)
+- [ ] 낙상 위험 운동 제외 (골다공증 고려)
+- [ ] 주의사항 배너 표시 ("부목 착용 중이며...")
+- [ ] 달력 뷰에 주차별 날짜 표시
 
 ---
 
-#### 시나리오 2: 상호작용 없음
+#### 시나리오 2: 운동 완료 기록
 
-**Given:**
-- 기존 약물: 메트포르민 500mg
-- 신규 약물: 란소프라졸 30mg
-
-**When:** 분석 시작  
+**Given:** 재활 운동 페이지, 운동 카드 표시 중
+**When:** "✓ 완료" 버튼 클릭
 **Then:**
-- [ ] 분석 완료
-- [ ] 상호작용 0건
-- [ ] "안전" 메시지 표시 (초록색)
-- [ ] 면책 문구 표시
-
----
-
-#### 시나리오 3: 여러 상호작용 (High + Medium)
-
-**Given:**
-- 기존 약물: 와파린 5mg (항응고제)
-- 신규 약물: 아스피린 100mg (항혈소판제)
-
-**When:** 분석 시작  
-**Then:**
-- [ ] 상호작용 1건 감지
-- [ ] 위험도: High (빨간색)
-- [ ] 원리: "출혈 위험 증가"
-- [ ] 권장사항: "의사와 상담 필수"
-
----
-
-### 7.5 재활 플랜 생성 테스트
-
-#### 시나리오 1: 당뇨 환자 무릎 수술
-
-**Given:**
-- 기저질환: 당뇨
-- 수술 부위: 무릎
-- 수술일: 2주 전
-
-**When:** 재활 플랜 생성  
-**Then:**
-- [ ] 4주 프로그램 생성
-- [ ] 당뇨 안전 운동만 포함
-- [ ] 금기 운동 제외 (고강도, 낙상 위험)
-- [ ] 주차별 난이도 점진적 증가
-- [ ] 주의사항: "당뇨 환자 상처 체크 후 시작"
-
-**포함 운동:**
-- 큐세팅 (저강도)
-- 발목 펌프 (저강도)
-- SLR (중강도, 2주차부터)
-
-**제외 운동:**
-- 점프 (고강도)
-- 스쿼트 (낙상 위험)
-
----
-
-#### 시나리오 2: 골다공증 환자 손목 수술
-
-**Given:**
-- 기저질환: 골다공증
-- 수술 부위: 손목
-- 수술일: 1주 전
-
-**When:** 재활 플랜 생성  
-**Then:**
-- [ ] 4주 프로그램 생성
-- [ ] 낙상 위험 운동 제외
-- [ ] 앉아서 하는 운동 위주
-- [ ] 주의사항: "골다공증 환자 낙상 주의"
+- [ ] exercise_completions 테이블 저장 (completed_date 포함)
+- [ ] 오늘 진행률 업데이트
+- [ ] 완료 버튼 스타일 변경 (초록색 활성)
+- [ ] 달력 해당 날짜 진행률 업데이트
 
 ---
 
 ### 7.6 챗봇 테스트
 
-#### 시나리오 1: 약물 관련 질문
+#### 시나리오 1: 컨텍스트 인식 질문
 
-**Given:** 사용자가 이부프로펜 복용 중  
-**When:** "이부프로펜 먹으면 어지러운데 운동해도 되나요?" 질문  
+**Given:** 손목 골절 분석 결과가 있는 사용자
+**When:** "운동할 때 주의사항이 있나요?" 질문
 **Then:**
-- [ ] 3초 이내 답변
-- [ ] 현재 복용 약물 참고
-- [ ] 기저질환 고려 (골다공증 → 낙상 위험)
-- [ ] 구체적인 권장사항 제공
-- [ ] 면책 문구 포함
-
-**예상 답변:**
-```
-이부프로펜은 어지러움을 유발할 수 있습니다.
-골다공증 환자분께서는 낙상 위험이 높으므로,
-약 복용 후 30분간은 운동을 피하시고,
-바닥에 앉아서 하는 운동(큐세팅)을 권장합니다.
-
-⚠️ 정확한 진단은 의사와 상담하세요.
-```
+- [ ] SSE 스트리밍으로 실시간 답변 표시
+- [ ] 현재 재활 플랜 컨텍스트 반영
+- [ ] seed_knowledge.json 내용 참고
+- [ ] 마크다운 렌더링 (**굵게** 등)
+- [ ] 면책 문구 없음 (실제 화면 기준)
 
 ---
 
-#### 시나리오 2: 재활 운동 질문
+#### 시나리오 2: 새 대화 시작
 
-**Given:** 사용자가 무릎 재활 플랜 보는 중  
-**When:** "큐세팅은 어떻게 하나요?" 질문  
+**Given:** 기존 세션이 있는 사용자
+**When:** "+ 새 대화 시작" 버튼 클릭
 **Then:**
-- [ ] 3초 이내 답변
-- [ ] 현재 재활 플랜 참고
-- [ ] 운동 방법 상세 설명
-- [ ] 영상 링크 제공
-
-**예상 답변:**
-```
-큐세팅은 무릎 재활의 기본 운동입니다.
-
-방법:
-1. 바닥에 다리를 쭉 펴고 앉습니다
-2. 무릎 아래에 수건을 깔아둡니다
-3. 무릎을 바닥 쪽으로 누르며 허벅지에 힘을 줍니다
-4. 5초간 유지 후 이완합니다
-5. 10회 반복, 3세트 실시합니다
-
-영상 보기: [링크]
-
-⚠️ 정확한 진단은 의사와 상담하세요.
-```
+- [ ] 새 chat_sessions 생성
+- [ ] 대화 목록에 새 세션 추가
+- [ ] 채팅 영역 초기화
 
 ---
 
-#### 시나리오 3: 컨텍스트 없는 질문
+#### 시나리오 3: SSE 스트리밍 동작
 
-**Given:** 사용자가 대시보드 보는 중  
-**When:** "감기약 먹어도 되나요?" 질문  
+**Given:** 챗봇 질문 전송
+**When:** POST /api/v1/chat/stream 호출
 **Then:**
-- [ ] 3초 이내 답변
-- [ ] 일반적인 답변 제공
-- [ ] 현재 복용 약물 참고 불가 안내
-- [ ] 의사 상담 권장
+- [ ] 청크 단위로 텍스트 실시간 렌더링
+- [ ] 타이핑 애니메이션 표시
+- [ ] 스트리밍 완료 후 전체 메시지 표시
+- [ ] chat_messages 테이블 저장
 
-**예상 답변:**
+---
+
+### 7.7 마이페이지 테스트
+
+#### 시나리오 1: 이름 수정
+
+**Given:** 로그인한 사용자
+**When:** 마이페이지 → 이름 수정 → 저장
+**Then:**
+- [ ] PATCH /api/v1/auth/me 호출
+- [ ] 사이드바 이름 즉시 업데이트
+- [ ] 헤더 이름 즉시 업데이트
+
+---
+
+#### 시나리오 2: 비밀번호 변경
+
+**Given:** 로그인한 사용자
+**When:** 현재 비밀번호·새 비밀번호·확인 입력 후 변경
+**Then:**
+- [ ] PATCH /api/v1/auth/me/password 호출
+- [ ] 성공 시 "비밀번호가 변경되었습니다" 메시지
+- [ ] 현재 비밀번호 틀릴 경우 에러 메시지
+
+---
+
+#### 시나리오 3: 회원탈퇴
+
+**Given:** 로그인한 사용자
+**When:** 회원탈퇴 버튼 클릭 → 확인 다이얼로그 → 확인
+**Then:**
+- [ ] DELETE /api/v1/auth/me 호출
+- [ ] sessionStorage 토큰 삭제
+- [ ] 랜딩 페이지로 이동
+- [ ] 재로그인 시도 시 "이메일 또는 비밀번호가 잘못되었습니다"
+
+---
+
+### 7.8 건강 프로필 테스트
+
+#### 시나리오 1: 기저질환 수정
+
+**Given:** 건강 프로필 페이지
+**When:** 기저질환 섹션 "수정" 버튼 클릭 → 질환 추가/삭제 → 저장
+**Then:**
+- [ ] chronic_conditions 테이블 업데이트
+- [ ] 건강 프로필 페이지 즉시 반영
+
+---
+
+#### 시나리오 2: 복용약 수정
+
+**Given:** 건강 프로필 페이지
+**When:** 복용약 섹션 "수정" 버튼 클릭 → 약 추가 → 저장
+**Then:**
+- [ ] medications 테이블 저장
+- [ ] standardized_name drug_normalizer.py 자동 생성
+- [ ] 건강 프로필 페이지 즉시 반영
+
+---
+
+### 7.9 Mock 모드 테스트
+
+#### 시나리오 1: 전체 Mock 모드
+
+**Given:** 환경변수 설정
 ```
-현재 복용 중인 약물 정보가 필요합니다.
-처방전 분석 결과를 먼저 확인해주세요.
-
-일반적으로 감기약은 다른 약물과 상호작용할 수 있으므로,
-의사나 약사와 상담 후 복용하시는 것을 권장합니다.
-
-⚠️ 정확한 진단은 의사와 상담하세요.
+USE_MOCK_OCR=true
+USE_MOCK_ANALYSIS=true
+USE_MOCK_CHAT=true
 ```
 
----
-
-### 7.7 성능 테스트
-
-#### 시나리오 1: OCR 처리 시간
-
-**테스트 방법:**
-1. 10장의 처방전 이미지 준비 (다양한 품질)
-2. 각 이미지 업로드 후 처리 시간 측정
-3. 평균 시간 계산
-
-**검수 기준:**
-- [ ] 평균 5초 이하
-- [ ] 최대 10초 이하
+**When:** 처방전 업로드 → 분석 → 챗봇 질문
+**Then:**
+- [ ] Naver Clova OCR API 호출 없이 고정 결과 반환
+- [ ] OpenAI GPT API 호출 없이 고정 분석 결과 반환
+- [ ] OpenAI GPT API 호출 없이 고정 챗봇 응답 반환
+- [ ] 전체 플로우 정상 동작 확인
 
 ---
 
-#### 시나리오 2: 분석 완료 시간
+#### 시나리오 2: 프로덕션 모드 확인
 
-**테스트 방법:**
-1. 10개의 분석 요청 (다양한 약물 조합)
-2. OCR 확정 후 최종 결과까지 시간 측정
-3. 평균 시간 계산
-
-**검수 기준:**
-- [ ] 평균 15초 이하
-- [ ] 최대 30초 이하
-
----
-
-#### 시나리오 3: 챗봇 응답 시간
-
-**테스트 방법:**
-1. 20개의 질문 준비 (다양한 유형)
-2. 각 질문 전송 후 답변까지 시간 측정
-3. P95 Latency 계산
-
-**검수 기준:**
-- [ ] P95 < 3초
-- [ ] 평균 2초 이하
-
----
-
-#### 시나리오 4: 분석 타임아웃
-
-**테스트 방법:**
-1. 백엔드 Celery 워커를 의도적으로 중단
-2. 분석 시작 버튼 클릭
-3. 폴링 동작 관찰
-
-**검수 기준:**
-- [ ] 10회(30초) 시도 후 중간 메시지 표시
-- [ ] 20회(60초) 시도 후 타임아웃 에러 표시
-- [ ] 타임아웃 후 폴링 중단 (무한 루프 방지)
-- [ ] "다시 시도" 버튼 클릭 시 새로운 분석 시작
+**Given:** 배포 환경
+**When:** 환경변수 확인
+**Then:**
+- [ ] USE_MOCK_OCR=false
+- [ ] USE_MOCK_ANALYSIS=false
+- [ ] USE_MOCK_CHAT=false
 
 ---
 
@@ -2741,115 +1548,114 @@ def get_result(
 
 ### 8.1 인증 에러 (AUTH_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| AUTH_001 | 400 | "이메일 형식이 올바르지 않습니다" | 이메일 정규식 불일치 | 올바른 이메일 형식 입력 |
-| AUTH_002 | 400 | "비밀번호는 8자 이상이어야 합니다" | 비밀번호 길이 부족 | 8자 이상 입력 |
-| AUTH_003 | 409 | "이미 가입된 이메일입니다" | 중복 이메일 | 다른 이메일 사용 |
-| AUTH_004 | 401 | "이메일 또는 비밀번호가 잘못되었습니다" | 로그인 실패 | 정보 확인 후 재시도 |
-| AUTH_005 | 401 | "로그인이 필요합니다" | JWT 토큰 없음 | 로그인 필요 |
-| AUTH_006 | 401 | "토큰이 만료되었습니다" | JWT 토큰 만료 | 재로그인 필요 |
-| AUTH_007 | 401 | "유효하지 않은 토큰입니다" | JWT 토큰 검증 실패 | 재로그인 필요 |
-| AUTH_008 | 400 | "비밀번호에 영문을 포함해야 합니다" | 비밀번호 영문 미포함 | 영문 포함하여 입력 |
-| AUTH_009 | 400 | "비밀번호에 숫자를 포함해야 합니다" | 비밀번호 숫자 미포함 | 숫자 포함하여 입력 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| AUTH_001 | 400 | "이메일 형식이 올바르지 않습니다" | 이메일 정규식 불일치 |
+| AUTH_002 | 400 | "비밀번호는 8자 이상이어야 합니다" | 비밀번호 길이 부족 |
+| AUTH_003 | 409 | "이미 가입된 이메일입니다" | 중복 이메일 |
+| AUTH_004 | 401 | "이메일 또는 비밀번호가 잘못되었습니다" | 로그인 실패 |
+| AUTH_005 | 401 | "로그인이 필요합니다" | JWT 토큰 없음 |
+| AUTH_006 | 401 | "토큰이 만료되었습니다" | JWT 토큰 만료 |
+| AUTH_007 | 401 | "유효하지 않은 토큰입니다" | JWT 검증 실패 |
+| AUTH_008 | 400 | "비밀번호에 영문을 포함해야 합니다" | 영문 미포함 |
+| AUTH_009 | 400 | "비밀번호에 숫자를 포함해야 합니다" | 숫자 미포함 |
+| AUTH_010 | 400 | "현재 비밀번호가 일치하지 않습니다" | 비밀번호 변경 실패 |
 
 ---
 
 ### 8.2 프로필 에러 (PROFILE_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| PROFILE_001 | 400 | "최소 1개 이상의 질환을 선택해주세요" | 기저질환 미선택 | 질환 선택 필요 |
-| PROFILE_002 | 400 | "올바른 용량 형식이 아닙니다 (예: 500mg)" | 용량 형식 오류 | 숫자+단위 형식 입력 |
-| PROFILE_003 | 400 | "복용 횟수는 1~4회만 가능합니다" | 복용 횟수 범위 초과 | 1~4 입력 |
-| PROFILE_004 | 400 | "올바른 복용 시간이 아닙니다" | 복용 시간 값 오류 | morning/lunch/evening/bedtime |
-| PROFILE_005 | 404 | "프로필을 찾을 수 없습니다" | 프로필 미존재 | 프로필 생성 필요 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| PROFILE_001 | 400 | "최소 1개 이상의 질환을 선택해주세요" | 기저질환 미선택 |
+| PROFILE_002 | 400 | "올바른 용량 형식이 아닙니다 (예: 500mg, 1정)" | 용량 형식 오류 |
+| PROFILE_003 | 400 | "복용 횟수는 1~4회만 가능합니다" | 복용 횟수 범위 초과 |
+| PROFILE_004 | 404 | "프로필을 찾을 수 없습니다" | 프로필 미존재 |
+| PROFILE_005 | 400 | "올바른 키 범위가 아닙니다 (50~250cm)" | 키 범위 초과 |
+| PROFILE_006 | 400 | "올바른 몸무게 범위가 아닙니다 (10~300kg)" | 몸무게 범위 초과 |
 
 ---
 
 ### 8.3 OCR 에러 (OCR_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| OCR_001 | 400 | "이미지 용량은 10MB 이하여야 합니다" | 파일 크기 초과 | 이미지 압축 후 재업로드 |
-| OCR_002 | 400 | "JPEG 또는 PNG 파일만 가능합니다" | 지원하지 않는 파일 형식 | JPEG/PNG 파일 업로드 |
-| OCR_003 | 500 | "인식 실패. 직접 입력해주세요" | OCR API 3회 재시도 실패 | 수동 입력 모드 전환 |
-| OCR_004 | 200 | "인식 정확도가 낮습니다. 확인해주세요" | 신뢰도 < 0.7 (경고) | 결과 수동 확인 필요 |
-| OCR_005 | 400 | "이미지 해상도가 너무 낮습니다" | 최소 해상도 미달 | 고해상도 이미지 업로드 |
-| OCR_006 | 404 | "OCR 결과를 찾을 수 없습니다" | OCR 결과 미존재 | OCR 재실행 필요 |
-| OCR_007 | 403 | "OCR 결과에 접근할 권한이 없습니다" | 소유권 검증 실패 | 본인 데이터만 접근 가능 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| OCR_001 | 400 | "이미지 용량은 10MB 이하여야 합니다" | 파일 크기 초과 |
+| OCR_002 | 400 | "JPG, PNG, WEBP, PDF 파일만 가능합니다" | 지원하지 않는 형식 |
+| OCR_003 | 500 | "인식 실패. 직접 입력해주세요" | OCR API 3회 재시도 실패 |
+| OCR_004 | 200 | "인식 정확도가 낮습니다. 확인해주세요" | 신뢰도 < 0.7 (경고) |
+| OCR_005 | 404 | "OCR 결과를 찾을 수 없습니다" | OCR 결과 미존재 |
+| OCR_006 | 403 | "OCR 결과에 접근할 권한이 없습니다" | 소유권 검증 실패 |
 
 ---
 
 ### 8.4 분석 에러 (ANALYSIS_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| ANALYSIS_001 | 400 | "OCR 결과가 필요합니다" | OCR 결과 미제공 | OCR 먼저 실행 |
-| ANALYSIS_002 | 400 | "올바른 수술 부위가 아닙니다" | target_area 값 오류 | knee/wrist/back/shoulder/ankle |
-| ANALYSIS_003 | 400 | "수술일은 과거 날짜여야 합니다" | 미래 날짜 입력 | 과거 날짜 입력 |
-| ANALYSIS_004 | 404 | "분석 작업을 찾을 수 없습니다" | task_id 미존재 | 올바른 task_id 확인 |
-| ANALYSIS_005 | 404 | "분석 결과를 찾을 수 없습니다" | guide_result_id 미존재 | 분석 재실행 필요 |
-| ANALYSIS_006 | 500 | "분석 중 오류가 발생했습니다" | 서버 내부 오류 | 재시도 또는 관리자 문의 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| ANALYSIS_001 | 400 | "문서 ID가 필요합니다" | document_id 미제공 |
+| ANALYSIS_002 | 400 | "올바른 수술 부위가 아닙니다" | target_area 값 오류 |
+| ANALYSIS_003 | 404 | "분석 결과를 찾을 수 없습니다" | guide_result_id 미존재 |
+| ANALYSIS_004 | 403 | "분석 결과에 접근할 권한이 없습니다" | 소유권 검증 실패 |
+| ANALYSIS_005 | 500 | "분석 중 오류가 발생했습니다" | 서버 내부 오류 |
 
 ---
 
 ### 8.5 LLM 에러 (LLM_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| LLM_001 | 500 | "분석 중 오류 발생. 다시 시도해주세요" | OpenAI API 호출 실패 | 재시도 (최대 3회) |
-| LLM_002 | 500 | "분석 결과 처리 중 오류 발생" | JSON 파싱 실패 | 재시도 (최대 3회) |
-| LLM_003 | 504 | "분석 시간 초과. 다시 시도해주세요" | 30초 타임아웃 | 재시도 |
-| LLM_004 | 429 | "요청이 너무 많습니다. 잠시 후 다시 시도해주세요" | Rate Limit 초과 | 1분 후 재시도 |
-| LLM_005 | 500 | "AI 서비스가 일시적으로 사용 불가합니다" | OpenAI API 장애 | 관리자 문의 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| LLM_001 | 500 | "분석 중 오류 발생. 다시 시도해주세요" | OpenAI API 호출 실패 |
+| LLM_002 | 500 | "분석 결과 처리 중 오류 발생" | JSON 파싱 실패 |
+| LLM_003 | 504 | "분석 시간 초과. 다시 시도해주세요" | 30초 타임아웃 |
+| LLM_004 | 429 | "요청이 너무 많습니다. 잠시 후 다시 시도해주세요" | Rate Limit 초과 |
+| LLM_005 | 500 | "AI 서비스가 일시적으로 사용 불가합니다" | OpenAI API 장애 |
 
 ---
 
 ### 8.6 챗봇 에러 (CHAT_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| CHAT_001 | 400 | "메시지를 입력해주세요" | 빈 메시지 전송 | 메시지 입력 필요 |
-| CHAT_002 | 400 | "메시지는 1000자 이하여야 합니다" | 메시지 길이 초과 | 메시지 줄여서 전송 |
-| CHAT_003 | 404 | "채팅 세션을 찾을 수 없습니다" | session_id 미존재 | 새 세션 생성 |
-| CHAT_004 | 404 | "메시지를 찾을 수 없습니다" | message_id 미존재 | 올바른 message_id 확인 |
-| CHAT_005 | 500 | "챗봇 응답 생성 실패" | LLM API 오류 | 재시도 |
-| CHAT_006 | 400 | "올바른 피드백 값이 아닙니다" | feedback 값 오류 | positive/negative |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| CHAT_001 | 400 | "메시지를 입력해주세요" | 빈 메시지 전송 |
+| CHAT_002 | 400 | "메시지는 1000자 이하여야 합니다" | 메시지 길이 초과 |
+| CHAT_003 | 404 | "채팅 세션을 찾을 수 없습니다" | session_id 미존재 |
+| CHAT_004 | 500 | "챗봇 응답 생성 실패" | LLM API 오류 |
+| CHAT_005 | 403 | "채팅 세션에 접근할 권한이 없습니다" | 소유권 검증 실패 |
 
 ---
 
 ### 8.7 파일 에러 (FILE_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| FILE_001 | 400 | "파일이 제공되지 않았습니다" | 파일 미첨부 | 파일 선택 필요 |
-| FILE_002 | 400 | "파일 이름이 너무 깁니다" | 파일명 길이 초과 | 파일명 줄이기 |
-| FILE_003 | 500 | "파일 업로드 실패" | S3 업로드 오류 | 재시도 |
-| FILE_004 | 500 | "파일 삭제 실패" | S3 삭제 오류 | 관리자 문의 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| FILE_001 | 400 | "파일이 제공되지 않았습니다" | 파일 미첨부 |
+| FILE_002 | 400 | "파일 이름이 너무 깁니다" | 파일명 길이 초과 |
+| FILE_003 | 500 | "로컬 파일 저장 실패" | uploads/ 폴더 저장 오류 |
+| FILE_004 | 500 | "로컬 파일 삭제 실패" | uploads/ 폴더 삭제 오류 |
 
 ---
 
 ### 8.8 데이터베이스 에러 (DB_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| DB_001 | 500 | "데이터베이스 연결 실패" | DB 연결 오류 | 재시도 또는 관리자 문의 |
-| DB_002 | 500 | "데이터 저장 실패" | DB INSERT 오류 | 재시도 |
-| DB_003 | 500 | "데이터 조회 실패" | DB SELECT 오류 | 재시도 |
-| DB_004 | 409 | "데이터 충돌" | Unique 제약 위반 | 데이터 확인 후 재시도 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| DB_001 | 500 | "데이터베이스 연결 실패" | DB 연결 오류 |
+| DB_002 | 500 | "데이터 저장 실패" | DB INSERT 오류 |
+| DB_003 | 500 | "데이터 조회 실패" | DB SELECT 오류 |
+| DB_004 | 409 | "데이터 충돌" | Unique 제약 위반 |
 
 ---
 
 ### 8.9 일반 에러 (GENERAL_XXX)
 
-| 코드 | HTTP Status | 메시지 | 원인 | 해결 방법 |
-|------|-------------|--------|------|----------|
-| GENERAL_001 | 400 | "잘못된 요청입니다" | 요청 형식 오류 | 요청 형식 확인 |
-| GENERAL_002 | 404 | "요청한 리소스를 찾을 수 없습니다" | 리소스 미존재 | URL 확인 |
-| GENERAL_003 | 405 | "허용되지 않은 메서드입니다" | HTTP 메서드 오류 | 메서드 확인 (GET/POST/PATCH) |
-| GENERAL_004 | 500 | "서버 내부 오류" | 예상치 못한 오류 | 관리자 문의 |
-| GENERAL_005 | 503 | "서비스를 일시적으로 사용할 수 없습니다" | 서버 점검 중 | 잠시 후 재시도 |
+| 코드 | HTTP Status | 메시지 | 원인 |
+|------|-------------|--------|------|
+| GENERAL_001 | 400 | "잘못된 요청입니다" | 요청 형식 오류 |
+| GENERAL_002 | 404 | "요청한 리소스를 찾을 수 없습니다" | 리소스 미존재 |
+| GENERAL_003 | 405 | "허용되지 않은 메서드입니다" | HTTP 메서드 오류 |
+| GENERAL_004 | 500 | "서버 내부 오류" | 예상치 못한 오류 |
+| GENERAL_005 | 503 | "서비스를 일시적으로 사용할 수 없습니다" | 서버 점검 중 |
 
 ---
 
@@ -2857,7 +1663,6 @@ def get_result(
 
 ### 9.1 표준 에러 응답
 
-**구조:**
 ```json
 {
   "error_code": "AUTH_001",
@@ -2866,25 +1671,14 @@ def get_result(
     "field": "email",
     "value": "invalid-email"
   },
-  "timestamp": "2026-02-25T10:30:00Z"
+  "timestamp": "2026-03-20T15:30:00Z"
 }
 ```
 
-**필수 필드:**
-- `error_code`: 에러 코드 (문자열)
-- `message`: 사용자에게 표시할 메시지 (한글)
-- `timestamp`: 에러 발생 시간 (ISO 8601)
-
-**선택 필드:**
-- `details`: 추가 정보 (객체)
-- `field`: 에러 발생 필드명
-- `value`: 에러 발생 값
-
 ---
 
-### 9.2 유효성 검증 에러 (422 Unprocessable Entity)
+### 9.2 유효성 검증 에러 (422)
 
-**여러 필드 에러:**
 ```json
 {
   "error_code": "VALIDATION_ERROR",
@@ -2899,7 +1693,7 @@ def get_result(
       "message": "비밀번호는 8자 이상이어야 합니다"
     }
   ],
-  "timestamp": "2026-02-25T10:30:00Z"
+  "timestamp": "2026-03-20T15:30:00Z"
 }
 ```
 
@@ -2907,153 +1701,46 @@ def get_result(
 
 ### 9.3 프론트엔드 에러 처리
 
-**구현 예시 (React):**
-
-```javascript
-// API 호출
-try {
-  const response = await fetch('/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    
-    // 에러 코드별 처리
-    switch (error.error_code) {
-      case 'AUTH_001':
-        setEmailError('이메일 형식이 올바르지 않습니다');
-        break;
-      case 'AUTH_003':
-        setEmailError('이미 가입된 이메일입니다');
-        break;
-      default:
-        setGeneralError(error.message);
+```typescript
+// axios 응답 인터셉터
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout(); // sessionStorage 토큰 삭제
+      window.location.href = '/login';
     }
-    
-    return;
+    return Promise.reject(error);
   }
-
-  // 성공 처리
-  const data = await response.json();
-  localStorage.setItem('token', data.access_token);
-  navigate('/dashboard');
-  
-} catch (error) {
-  // 네트워크 에러
-  setGeneralError('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
-}
+);
 ```
 
 ---
 
-## 10. 추가 기능 요구사항
+## 10. 개발 가이드라인
 
-### 10.1 알림 기능 (선택 사항)
+### 10.1 코드 스타일
 
-#### 10.1.1 복약 리마인더
+#### Python (Backend)
 
-**기능:**
-- 복약 시간 30분 전 알림
-- 브라우저 푸시 알림 (Web Push API)
-
-**구현:**
-```javascript
-// 알림 권한 요청
-Notification.requestPermission().then(permission => {
-  if (permission === 'granted') {
-    // 알림 예약
-    scheduleNotification('아침 약 복용 시간입니다', '08:00');
-  }
-});
-```
-
-**우선순위:** Low  
-**예상 소요 시간:** 4시간
-
----
-
-#### 10.1.2 재활 운동 리마인더
-
-**기능:**
-- 매일 오전 10시 운동 알림
-- 완료하지 않은 운동 알림
-
-**우선순위:** Low  
-**예상 소요 시간:** 2시간
-
----
-
-### 10.2 의사용 요약 리포트 (선택 사항)
-
-#### 10.2.1 PDF 리포트 생성
-
-**기능:**
-- 환자 정보, 약물 리스트, 상호작용, 재활 플랜을 PDF로 생성
-- 의사에게 제출 가능
-
-**구현:**
-- 라이브러리: `jsPDF` 또는 서버에서 `WeasyPrint`
-- 버튼: "의사용 리포트 다운로드"
-
-**우선순위:** Low  
-**예상 소요 시간:** 6시간
-
----
-
-### 10.3 데이터 내보내기
-
-#### 10.3.1 복약 시간표 CSV 내보내기
-
-**기능:**
-- 복약 시간표를 CSV 파일로 다운로드
-- Excel에서 열기 가능
-
-**CSV 형식:**
-```csv
-시간,약물명,용량,복용법
-아침 식후,메트포르민,500mg,물 한 컵과 함께
-아침 식후,이부프로펜,400mg,
-점심 식후,이부프로펜,400mg,
-```
-
-**우선순위:** Low  
-**예상 소요 시간:** 2시간
-
----
-
-## 11. 개발 가이드라인
-
-### 11.1 코드 스타일
-
-#### 11.1.1 Python (Backend)
-
-**스타일 가이드:** PEP 8
-
-**필수 규칙:**
-- 들여쓰기: 4 spaces
-- 최대 줄 길이: 88자 (Black 기본값)
-- 함수명: `snake_case`
-- 클래스명: `PascalCase`
-- 상수: `UPPER_SNAKE_CASE`
-
-**예시:**
 ```python
 # ✅ 좋은 예
-def get_user_profile(user_id: int) -> UserProfile:
+async def get_user_profile(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> UserProfile:
     """사용자 프로필 조회"""
-    user = db.query(User).filter_by(id=user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
-    return user.profile
-
-# ❌ 나쁜 예
-def GetUserProfile(userId):
-    user=db.query(User).filter_by(id=userId).first()
-    if not user:raise HTTPException(status_code=404)
-    return user.profile
+    result = await db.execute(
+        select(HealthProfile).where(
+            HealthProfile.user_id == user_id,
+            HealthProfile.user_id == current_user.id  # 소유권 검증
+        )
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="프로필을 찾을 수 없습니다")
+    return profile
 ```
 
 **도구:**
@@ -3063,56 +1750,72 @@ def GetUserProfile(userId):
 
 ---
 
-#### 11.1.2 JavaScript/React (Frontend)
+#### TypeScript/React (Frontend)
 
-**스타일 가이드:** Airbnb JavaScript Style Guide
-
-**필수 규칙:**
-- 들여쓰기: 2 spaces
-- 세미콜론: 사용
-- 따옴표: 작은따옴표 (`'`)
-- 함수명: `camelCase`
-- 컴포넌트명: `PascalCase`
-- 상수: `UPPER_SNAKE_CASE`
-
-**예시:**
-```javascript
+```typescript
 // ✅ 좋은 예
-const UserProfile = ({ userId }) => {
-  const [profile, setProfile] = useState(null);
-  
-  useEffect(() => {
-    fetchUserProfile(userId).then(setProfile);
-  }, [userId]);
-  
-  return <div>{profile?.name}</div>;
-};
+const ChatPage: React.FC = () => {
+  const { token } = useAuthStore();
+  const [messages, setMessages] = useState<Message[]>([]);
 
-// ❌ 나쁜 예
-const userProfile = ({userId}) => {
-  const [profile,setProfile]=useState(null)
-  useEffect(()=>{
-    fetchUserProfile(userId).then(setProfile)
-  },[userId])
-  return <div>{profile?.name}</div>
-}
+  const handleStream = async (message: string) => {
+    const eventSource = new EventSource(
+      `${import.meta.env.VITE_API_URL}/chat/stream`
+    );
+    eventSource.onmessage = (e) => {
+      const { chunk } = JSON.parse(e.data);
+      setMessages((prev) => [...prev, { role: 'assistant', content: chunk }]);
+    };
+  };
+
+  return <div>...</div>;
+};
 ```
 
 **도구:**
 - Formatter: `prettier`
 - Linter: `eslint`
+- 번들러: `Vite 7`
 
 ---
 
-### 11.2 Git 커밋 메시지
+### 10.2 환경 변수
 
-**형식:**
+**Backend (.env):**
+```bash
+# Database
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/chroniccare
+
+# JWT
+SECRET_KEY=your-secret-key-here
+
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# Naver Clova OCR
+CLOVA_OCR_SECRET=...
+CLOVA_OCR_APIGW_URL=https://...
+
+# Mock 모드 (개발용)
+USE_MOCK_OCR=false
+USE_MOCK_ANALYSIS=false
+USE_MOCK_CHAT=false
 ```
-<type>(<scope>): <subject>
 
-<body>
+**Frontend (.env):**
+```bash
+VITE_API_URL=http://localhost:8000/api/v1
+```
 
-<footer>
+---
+
+### 10.3 Git 커밋 메시지
+
+```
+feat(auth): 카카오 OAuth 로그인 구현
+fix(ocr): WEBP 파일 업로드 오류 수정
+docs(requirements): 온보딩 4단계 UI 요구사항 추가
+refactor(chat): SSE 스트리밍 엔드포인트 분리
 ```
 
 **Type:**
@@ -3124,257 +1827,94 @@ const userProfile = ({userId}) => {
 - `test`: 테스트 추가
 - `chore`: 빌드/설정 변경
 
-**예시:**
-```
-feat(auth): 회원가입 API 구현
-
-- 이메일 중복 체크 추가
-- 비밀번호 해싱 (bcrypt)
-- JWT 토큰 발급
-
-Closes #12
-```
-
 ---
 
-### 11.3 브랜치 전략
+## 11. 배포 체크리스트
 
-**브랜치 구조:**
-```
-main (배포용)
-  ├─ develop (개발용)
-  │   ├─ feature/auth (기능 개발)
-  │   ├─ feature/ocr
-  │   └─ feature/chat
-  └─ hotfix/critical-bug (긴급 수정)
-```
-
-**규칙:**
-- `main`: 배포 가능한 상태만 유지
-- `develop`: 개발 중인 코드
-- `feature/*`: 기능별 브랜치
-- `hotfix/*`: 긴급 버그 수정
-
-**워크플로우:**
-1. `develop`에서 `feature/xxx` 브랜치 생성
-2. 기능 개발 완료 후 `develop`에 PR
-3. 코드 리뷰 후 머지
-4. `develop` 테스트 완료 후 `main`에 머지
-
----
-
-### 11.4 환경 변수
-
-**필수 환경 변수 (.env):**
-
-```bash
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/chroniccare
-
-# JWT
-JWT_SECRET_KEY=your-secret-key-here
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_HOURS=24
-
-# OpenAI
-OPENAI_API_KEY=sk-...
-
-# Naver Clova OCR
-NAVER_OCR_API_URL=https://...
-NAVER_OCR_SECRET_KEY=...
-
-# AWS S3
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_S3_BUCKET_NAME=chroniccare-prescriptions
-AWS_REGION=ap-northeast-2
-
-# Frontend
-REACT_APP_API_URL=http://localhost:8000
-```
-
-**보안:**
-- `.env` 파일은 `.gitignore`에 추가
-- `.env.example` 파일로 템플릿 제공
-- 프로덕션 환경에서는 환경 변수로 주입
-
----
-
-## 12. 배포 체크리스트
-
-### 12.1 배포 전 확인 사항
+### 11.1 배포 전 확인 사항
 
 **코드:**
 - [ ] 모든 테스트 통과
 - [ ] 코드 리뷰 완료
-- [ ] 린터/포매터 실행
 - [ ] 불필요한 console.log 제거
-- [ ] 주석 정리
+- [ ] Mock 모드 3개 모두 false 확인
 
 **환경 변수:**
-- [ ] 프로덕션 환경 변수 설정
-- [ ] API 키 유효성 확인
-- [ ] 데이터베이스 연결 확인
+- [ ] OPENAI_API_KEY 유효성 확인
+- [ ] CLOVA_OCR_SECRET 유효성 확인
+- [ ] SECRET_KEY 충분한 길이 확인
+- [ ] VITE_API_URL 프로덕션 URL로 변경
+- [ ] USE_MOCK_OCR=false
+- [ ] USE_MOCK_ANALYSIS=false
+- [ ] USE_MOCK_CHAT=false
 
-**데이터베이스:**
-- [ ] 마이그레이션 실행
-- [ ] Seed Data 로딩
-- [ ] 백업 설정
+**Docker:**
+- [ ] docker-compose up -d → 4개 서비스 모두 healthy
+- [ ] postgres: pgvector/pgvector:pg15 이미지 정상 기동
+- [ ] init.sql → 17개 테이블 생성 확인
+- [ ] seed_exercises.sql → exercise_library 데이터 로딩 확인
+- [ ] uploads/ 볼륨 마운트 확인
+- [ ] redis_data 볼륨 마운트 확인
 
 **보안:**
 - [ ] HTTPS 설정
-- [ ] CORS 설정
-- [ ] Rate Limiting 설정
-- [ ] 환경 변수 암호화
-
-**성능:**
-- [ ] 이미지 최적화
-- [ ] 번들 크기 확인 (< 500KB)
-- [ ] Lighthouse 점수 90+
+- [ ] CORS 허용 도메인 제한
+- [ ] .env 파일 .gitignore 처리 확인
 
 ---
 
-### 12.2 배포 후 확인 사항
+### 11.2 배포 후 확인 사항
 
 **기능 테스트:**
-- [ ] 회원가입/로그인
-- [ ] 처방전 업로드 및 OCR
-- [ ] 약물 상호작용 분석
-- [ ] 재활 플랜 생성
-- [ ] 챗봇 응답
+- [ ] 회원가입 (이메일)
+- [ ] 로그인 → sessionStorage 토큰 저장 확인
+- [ ] 온보딩 4단계 전체 완료
+- [ ] 처방전 업로드 (JPG/PNG/WEBP/PDF)
+- [ ] OCR 처리 → 분석 시작 → 폴링 → 완료
+- [ ] 재활 운동 달력 뷰 + 완료 기록
+- [ ] 챗봇 SSE 스트리밍 동작
+- [ ] 마이페이지 이름 수정·비밀번호 변경
+- [ ] 건강 프로필 수정
+- [ ] 로그아웃 → sessionStorage 초기화 확인
 
 **성능 테스트:**
 - [ ] OCR 처리 시간 < 5초
-- [ ] 분석 완료 시간 < 15초
-- [ ] 챗봇 응답 시간 < 3초
+- [ ] AI 분석 완료 시간 < 30초
+- [ ] 챗봇 첫 청크 < 2초
+- [ ] 일반 API 응답 < 200ms
 
-**모니터링:**
-- [ ] 에러 로그 확인
-- [ ] API 응답 시간 모니터링
-- [ ] 데이터베이스 연결 상태
+**Redis 테스트:**
+- [ ] 재활 플랜 조회 캐싱 동작 확인
+- [ ] Redis 연결 중단 시 Graceful Degradation 확인
 
 ---
 
-## 13. 문서 종료
+## 12. 문서 종료
 
-### 13.1 문서 요약
+### 12.1 문서 요약
 
 **이 문서는 다음을 정의합니다:**
 
-1. ✅ **사용자 스토리 (18개)**
-   - 인증, 프로필, OCR, 분석, 재활, 챗봇, 대시보드
-
-2. ✅ **API 엔드포인트 (20개)**
-   - Request/Response 예시
-   - 에러 응답 형식
-
-3. ✅ **화면별 UI 요구사항 (13개 화면)**
-   - 웹 레이아웃 (사이드바 + 메인 콘텐츠)
-   - 2~3단 그리드 레이아웃
-   - 반응형 디자인
-
-4. ✅ **데이터 검증 규칙**
-   - 회원가입, 약물 입력, 파일 업로드
-
-5. ✅ **권한 및 접근 제어**
-   - JWT 인증
-   - 리소스 소유권 검증
-
-6. ✅ **비기능적 요구사항**
-   - 성능, 접근성, 보안, 가용성
-
-7. ✅ **테스트 시나리오 (30개 이상)**
-   - 회원가입, 로그인, OCR, 분석, 챗봇
-
-8. ✅ **에러 코드 정의 (50개 이상)**
-   - 인증, 프로필, OCR, 분석, LLM, 챗봇
-
-9. ✅ **개발 가이드라인**
-   - 코드 스타일, Git 커밋, 브랜치 전략
-
-10. ✅ **배포 체크리스트**
-    - 배포 전/후 확인 사항
+1. **사용자 스토리 (18개)** — 인증·프로필·OCR·분석·재활·챗봇·대시보드
+2. **API 엔드포인트 (25개)** — /api/v1 접두사, Request/Response 예시
+3. **화면별 UI 요구사항 (10개 화면)** — 실제 스크린샷 기준
+   - 랜딩·회원가입·로그인·온보딩 4단계·대시보드
+   - 처방전분석·재활운동·챗봇·마이페이지·건강프로필
+4. **데이터 검증 규칙** — 회원가입·파일업로드·약물·기본건강정보
+5. **권한 및 접근 제어** — JWT·sessionStorage·소유권 검증
+6. **비기능적 요구사항** — 성능·접근성·보안·가용성
+7. **테스트 시나리오 (30개 이상)** — Mock 모드 포함
+8. **에러 코드 정의 (50개 이상)** — AUTH·PROFILE·OCR·ANALYSIS·LLM·CHAT
+9. **개발 가이드라인** — 코드 스타일·환경변수·Git 커밋
+10. **배포 체크리스트** — 배포 전/후 확인 사항
 
 ---
 
-### 13.2 다음 단계
+### 12.2 관련 문서
 
-**개발 순서:**
-
-1. **Day 1-2: DB 설계 + Seed Data**
-   - ERD 작성
-   - `exercises.json` 작성 (30개 운동)
-   - `seed_loader.py` 구현
-
-2. **Day 3-5: OCR + LLM 로직**
-   - Naver Clova OCR 연동
-   - OpenAI API 연동
-   - 비동기 처리 (Celery)
-
-3. **Day 6-9: Frontend 개발**
-   - 회원가입/로그인
-   - 온보딩 (기저질환, 약물 입력)
-   - 처방전 업로드 및 OCR 결과 확인
-   - 분석 결과 화면
-
-4. **Day 10-12: 챗봇 + 완성도**
-   - Context Injection 챗봇 구현
-   - 피드백 기능
-   - UI 완성도 향상
-
-5. **Day 13-14: 테스트 + 버그 수정**
-   - 테스트 시나리오 실행
-   - P95 Latency 측정
-   - 버그 수정
-
-6. **Day 15-16: 발표 준비**
-   - PPT 작성
-   - 데모 영상 촬영
-   - 발표 리허설
-
----
-
-### 13.3 참고 문서
-
-**관련 문서:**
 - `00_unified_RDD.md`: 프로젝트 전체 개요, 시스템 아키텍처
-- `ERD.md`: 데이터베이스 스키마 상세
-- `API_Spec.md`: API 명세서 (Swagger)
-- `seeds/exercises.json`: 운동 Seed Data
-- `seeds/drug_interactions.json`: 약물 상호작용 Seed Data
-
----
-
-### 13.4 연락처
-
-**개발팀:**
-- 프로젝트 매니저: [이름]
-- 백엔드 개발자: [이름]
-- 프론트엔드 개발자: [이름]
-
-**문의:**
-- 이메일: team@chroniccare.com
-- Slack: #chroniccare-ortho
-
----
-
-## 문서 작성 완료!
-
-**01_Requirements.md 문서가 완성되었습니다!**
-
-**총 분량:**
-- 약 12,000 단어
-- 80+ 페이지 (A4 기준)
-
-**포함 내용:**
-- ✅ 사용자 스토리 18개
-- ✅ API 엔드포인트 20개
-- ✅ 웹 UI 레이아웃 13개 화면
-- ✅ 테스트 시나리오 30개 이상
-- ✅ 에러 코드 50개 이상
-- ✅ 데이터 검증 규칙
-- ✅ 권한 및 접근 제어
-- ✅ 개발 가이드라인
-- ✅ 배포 체크리스트
-
----
+- `docker-compose.yml`: 4개 서비스 구성
+- `data/init.sql`: 17개 테이블 스키마
+- `data/seed_exercises.sql`: 운동 라이브러리 Seed Data
+- `chroniccare-backend/seeds/seed_knowledge.json`: 챗봇 컨텍스트 지식베이스
+```

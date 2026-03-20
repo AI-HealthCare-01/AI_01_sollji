@@ -1,8 +1,4 @@
 
-
----
-
-
 # ChronicCare Ortho
 
 > AI 기반 만성질환자 맞춤형 통합 복약·재활 관리 시스템
@@ -35,9 +31,9 @@ OCR 기반 처방전 분석과 AI 가이드를 통해 안전한 복약 및 재�
 
 **ChronicCare Ortho**는 이러한 문제를 해결하기 위해:
 - OCR 기술로 처방전을 자동 인식
-- GPT-4 기반 AI로 약물 상호작용 분석
+- GPT-4o-mini 기반 AI로 약물 상호작용 분석
 - 맞춤형 재활 가이드 생성
-- Full Injection 방식 챗봇으로 24시간 상담 지원
+- SSE 스트리밍 챗봇으로 24시간 상담 지원
 
 을 제공하는 통합 헬스케어 플랫폼입니다.
 
@@ -58,7 +54,7 @@ OCR 기반 처방전 분석과 AI 가이드를 통해 안전한 복약 및 재�
 - 지원 형식: JPEG, PNG (최대 10MB)
 
 ### 2. 약물 상호작용 분석
-- **GPT-4** 기반 기존 약물 + 신규 약물 상호작용 분석
+- **GPT-4o-mini** 기반 기존 약물 + 신규 약물 상호작용 분석
 - 위험도별 경고 (High / Medium / Low)
 - 상호작용 원리 및 권장사항 제공
 - 자동 복약 시간표 생성 (아침/점심/저녁/취침 전)
@@ -71,6 +67,7 @@ OCR 기반 처방전 분석과 AI 가이드를 통해 안전한 복약 및 재�
 
 ### 4. AI 챗봇
 - 분석 결과 및 재활 플랜을 컨텍스트로 활용하는 대화형 챗봇
+- **SSE(Server-Sent Events) 스트리밍** 방식으로 실시간 응답
 - 약물/재활 관련 질문 24시간 응답
 - 의료 면책 문구 자동 포함
 - 대화 이력 저장 및 세션 관리
@@ -87,74 +84,94 @@ OCR 기반 처방전 분석과 AI 가이드를 통해 안전한 복약 및 재�
 ### Backend
 | 기술 | 버전 | 용도 |
 |------|------|------|
+| **Python** | 3.11.9 | 메인 언어 |
 | **FastAPI** | 0.115.0 | 고성능 비동기 웹 프레임워크 |
-| **SQLAlchemy** | 2.0.35 | ORM |
-| **PostgreSQL** | 15+ | 메인 데이터베이스 |
+| **SQLAlchemy** | 2.0.35 | ORM (AsyncSession 기반) |
+| **PostgreSQL** | 15 | 메인 데이터베이스 |
 | **Alembic** | 1.13.3 | 데이터베이스 마이그레이션 |
+| **asyncpg** | 0.30.0 | 비동기 DB 드라이버 |
 | **Pydantic** | 2.12.5 | 데이터 검증 및 직렬화 |
-| **OpenAI API** | 1.51.0 | GPT-4 기반 AI 분석 |
+| **OpenAI API** | 1.51.0 | GPT-4o-mini 기반 AI 분석 |
 | **Uvicorn** | 0.30.6 | ASGI 서버 |
+| **Redis** | 7.2 | 캐싱 |
+
+### Frontend
+| 기술 | 버전 | 용도 |
+|------|------|------|
+| **React** | 19.2.0 | UI 프레임워크 |
+| **TypeScript** | 5.9.3 | 타입 안전성 |
+| **Vite** | 7.3.1 | 빌드 도구 |
+| **TailwindCSS** | 3.4.19 | 스타일링 |
+| **React Router DOM** | 7.13.1 | 라우팅 |
+| **Axios** | 1.13.5 | HTTP 클라이언트 |
+| **Zustand** | 5.0.11 | 클라이언트 상태 관리 |
+| **TanStack React Query** | 5.90.21 | 서버 상태 관리 |
 
 ### AI/ML
-- **OpenAI GPT-4**: 약물 상호작용 분석, 재활 가이드 생성, 챗봇 응답
+- **OpenAI GPT-4o-mini**: 약물 상호작용 분석, 재활 가이드 생성, 챗봇 응답
 - **Naver Clova OCR**: 처방전 텍스트 인식
 
 ### Infrastructure
-- **Docker & Docker Compose**: 컨테이너화 (PostgreSQL)
-- **Python 3.13+**: 메인 언어
-- **uv**: 패키지 관리
+- **Docker & Docker Compose**: 4개 서비스 컨테이너화 (postgres, redis, backend, frontend)
+- **pip**: 패키지 관리
 
 ---
 
 ## 프로젝트 구조
 
 ```
-AI_Health_final/
-├── app/                          # 메인 애플리케이션
-│   ├── core/                     # 핵심 설정
-│   │   ├── config.py            # 환경 변수 설정
-│   │   ├── database.py          # DB 연결 설정
-│   │   └── security.py          # JWT 인증
-│   ├── models/                   # SQLAlchemy 모델
-│   │   ├── user.py              # 사용자, 프로필
-│   │   ├── document.py          # 문서, OCR 결과
-│   │   ├── analysis.py          # AI 분석 결과
-│   │   ├── rehab.py             # 재활 운동
-│   │   └── chat.py              # 챗봇 세션/메시지
-│   ├── routers/                  # API 엔드포인트
-│   │   ├── auth.py              # 인증 (회원가입/로그인)
-│   │   ├── profile.py           # 프로필 관리
-│   │   ├── documents.py         # 문서 업로드/OCR
-│   │   ├── analysis.py          # AI 분석
-│   │   ├── rehab.py             # 재활 운동
-│   │   ├── chat.py              # 챗봇
-│   │   └── feedback.py          # 피드백
-│   ├── services/                 # 비즈니스 로직
-│   │   ├── ocr_service.py       # OCR 처리
-│   │   ├── analysis_service.py  # AI 분석 (비동기)
-│   │   ├── rehab_service.py     # 재활 가이드 생성
-│   │   ├── chat_service.py      # 챗봇 로직
-│   │   └── profile_service.py   # 프로필 관리
-│   └── main.py                   # FastAPI 앱 진입점
-├── alembic/                      # 데이터베이스 마이그레이션
-│   ├── versions/                 # 마이그레이션 파일
-│   └── env.py                    # Alembic 설정
-├── data/                         # Seed 데이터
-│   ├── seed_exercises.sql       # 운동 라이브러리 (30개)
-│   └── seed_knowledge.json      # AI 챗봇 지식 베이스 (60개)
-├── docs/                         # 프로젝트 문서
-│   ├── 00_unified_RDD.md        # 요구사항 정의서
-│   ├── 01_Requirements.md       # 기능 명세
-│   ├── 02_ERD_Explanation.md    # 데이터베이스 설계
-│   ├── 03_API_Specification.md  # API 문서
-│   └── ERD_Diagram.png          # ERD 다이어그램
-├── scripts/                      # 유틸리티 스크립트
-│   ├── seed_exercises.py        # 운동 데이터 로딩
-│   └── seed_knowledge.py        # 지식 베이스 로딩
-├── .env                          # 환경 변수 (git 제외)
-├── docker-compose.yml            # Docker 설정
-├── requirements.txt              # Python 의존성
-├── alembic.ini                   # Alembic 설정
+AI_01_sollji/
+├── chroniccare-backend/              # 백엔드 애플리케이션
+│   ├── app/                          # 메인 애플리케이션
+│   │   ├── core/                     # 핵심 설정
+│   │   │   ├── config.py            # 환경 변수 설정
+│   │   │   ├── database.py          # DB 연결 설정 (AsyncSession)
+│   │   │   └── security.py          # JWT 인증
+│   │   ├── models/                   # SQLAlchemy 모델
+│   │   │   ├── user.py              # 사용자, 프로필
+│   │   │   ├── document.py          # 문서, OCR 결과
+│   │   │   ├── analysis.py          # AI 분석 결과
+│   │   │   ├── rehab.py             # 재활 운동
+│   │   │   └── chat.py              # 챗봇 세션/메시지
+│   │   ├── routers/                  # API 엔드포인트
+│   │   │   ├── auth.py              # 인증 (회원가입/로그인)
+│   │   │   ├── profile.py           # 프로필 관리
+│   │   │   ├── documents.py         # 문서 업로드/OCR
+│   │   │   ├── analysis.py          # AI 분석
+│   │   │   ├── rehab.py             # 재활 운동
+│   │   │   ├── chat.py              # 챗봇 (SSE 스트리밍)
+│   │   │   └── feedback.py          # 피드백
+│   │   ├── services/                 # 비즈니스 로직
+│   │   │   ├── ocr_service.py       # OCR 처리 (Clova OCR)
+│   │   │   ├── analysis_service.py  # AI 분석 (BackgroundTasks)
+│   │   │   ├── rehab_service.py     # 재활 가이드 생성
+│   │   │   ├── chat_service.py      # 챗봇 로직 (SSE 스트리밍)
+│   │   │   └── profile_service.py   # 프로필 관리
+│   │   └── main.py                   # FastAPI 앱 진입점
+│   ├── alembic/                      # 데이터베이스 마이그레이션
+│   │   ├── versions/                 # 마이그레이션 파일
+│   │   └── env.py                    # Alembic 설정
+│   ├── data/                         # Seed 데이터
+│   │   ├── seed_exercises.sql       # 운동 라이브러리 (30개)
+│   │   └── seed_knowledge.json      # AI 챗봇 지식 베이스 (60개)
+│   ├── scripts/                      # 유틸리티 스크립트
+│   │   ├── seed_exercises.py        # 운동 데이터 로딩
+│   │   └── seed_knowledge.py        # 지식 베이스 로딩
+│   ├── uploads/                      # 처방전 이미지 로컬 저장
+│   ├── requirements.txt              # Python 의존성
+│   ├── Dockerfile                    # 백엔드 컨테이너
+│   └── alembic.ini                   # Alembic 설정
+├── chroniccare-frontend/             # 프론트엔드 애플리케이션
+│   ├── src/                          # 소스 코드
+│   ├── Dockerfile                    # 프론트엔드 컨테이너
+│   └── package.json                  # Node.js 의존성
+├── docs/                             # 프로젝트 문서
+│   ├── 00_unified_RDD.md            # 요구사항 정의서
+│   ├── 01_Requirements.md           # 기능 명세
+│   ├── 02_ERD_Explanation.md        # 데이터베이스 설계
+│   ├── 03_API_Specification.md      # API 문서
+│   └── ERD_Diagram.png              # ERD 다이어그램
+├── docker-compose.yml                # Docker 설정 (4개 서비스)
 └── README.md
 ```
 
@@ -164,8 +181,9 @@ AI_Health_final/
 
 ### 사전 요구사항
 
-- Python 3.13+
 - Docker & Docker Compose
+- Python 3.11+
+- Node.js 20+
 
 ### 1. 저장소 클론
 
@@ -176,14 +194,17 @@ cd AI_01_sollji
 
 ### 2. 환경 변수 설정
 
-`.env` 파일을 프로젝트 루트에 생성:
+`chroniccare-backend/.env` 파일을 생성:
 
 ```env
 # Database
 POSTGRES_USER=ai_health_user
 POSTGRES_PASSWORD=ai_health_pass
 POSTGRES_DB=ai_health_db
-DATABASE_URL=postgresql+psycopg://ai_health_user:ai_health_pass@localhost:5432/ai_health_db
+DATABASE_URL=postgresql+asyncpg://ai_health_user:ai_health_pass@localhost:5432/ai_health_db
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
 
 # JWT
 JWT_SECRET_KEY=your-super-secret-key-change-this-in-production
@@ -202,54 +223,53 @@ APP_ENV=development
 DEBUG=true
 ```
 
-### 3. Docker로 PostgreSQL 실행
+### 3. Docker Compose로 전체 서비스 실행 (권장)
 
 ```bash
+# 전체 서비스 시작 (postgres, redis, backend, frontend)
 docker-compose up -d
+
+# 로그 확인
+docker-compose logs -f backend
 ```
 
-### 4. 가상환경 및 의존성 설치
+### 4. 데이터베이스 마이그레이션
 
 ```bash
-# uv 사용 (권장)
-uv venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-uv pip install -r requirements.txt
-
-# 또는 pip 사용
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+docker-compose exec backend alembic upgrade head
 ```
 
-### 5. 데이터베이스 마이그레이션
-
-```bash
-alembic upgrade head
-```
-
-### 6. Seed 데이터 로딩
+### 5. Seed 데이터 로딩
 
 ```bash
 # 운동 라이브러리 (30개)
-python scripts/seed_exercises.py
+docker-compose exec backend python scripts/seed_exercises.py
 
 # AI 챗봇 지식 베이스 (60개)
-python scripts/seed_knowledge.py
+docker-compose exec backend python scripts/seed_knowledge.py
 ```
 
-### 7. 서버 실행
+### 6. 로컬 개발 환경 (Docker 없이)
 
 ```bash
+# 백엔드
+cd chroniccare-backend
+pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 프론트엔드
+cd chroniccare-frontend
+npm install
+npm run dev
 ```
 
 실행 후:
+- 프론트엔드: http://localhost:3000
 - API 서버: http://localhost:8000
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-### 8. 헬스 체크
+### 7. 헬스 체크
 
 ```bash
 curl http://localhost:8000/health
@@ -267,7 +287,7 @@ curl http://localhost:8000/health
 
 ## API 엔드포인트
 
-> Base URL: `http://localhost:8000/api/v1`
+> Base URL: `http://localhost:8000/api/v1`  
 > 인증: `Authorization: Bearer {token}`
 
 ### 인증 (Authentication)
@@ -301,7 +321,7 @@ curl http://localhost:8000/health
 ### AI 분석 (Analysis)
 | Method | Endpoint | 설명 | 인증 |
 |--------|----------|------|------|
-| POST | `/api/v1/analysis/{document_id}` | 처방전 AI 분석 요청 (비동기) | ✅ |
+| POST | `/api/v1/analysis/{document_id}` | 처방전 AI 분석 요청 (BackgroundTasks) | ✅ |
 | GET | `/api/v1/analysis/{guide_result_id}/status` | 분석 진행 상태 조회 | ✅ |
 
 ### 재활 (Rehabilitation)
@@ -316,7 +336,7 @@ curl http://localhost:8000/health
 ### 챗봇 (Chat)
 | Method | Endpoint | 설명 | 인증 |
 |--------|----------|------|------|
-| POST | `/api/v1/chat` | 메시지 전송 (세션 자동 생성) | ✅ |
+| POST | `/api/v1/chat` | 메시지 전송 (SSE 스트리밍) | ✅ |
 | GET | `/api/v1/chat/sessions` | 채팅 세션 목록 조회 | ✅ |
 | GET | `/api/v1/chat/sessions/{session_id}/messages` | 대화 이력 조회 | ✅ |
 | PATCH | `/api/v1/chat/sessions/{session_id}/end` | 세션 종료 | ✅ |
@@ -395,6 +415,7 @@ curl http://localhost:8000/health
 - **파일 업로드 제한**: 10MB, JPEG/PNG만 허용
 - **SQL Injection 방지**: SQLAlchemy ORM 사용
 - **입력 검증**: Pydantic 스키마로 모든 입력 검증
+- **처방전 이미지**: 로컬 `uploads/` 폴더에 저장, 24시간 후 자동 삭제
 
 ---
 
@@ -402,19 +423,19 @@ curl http://localhost:8000/health
 
 ### Phase 1 (완료) 
 - 회원가입/로그인 (JWT 인증)
-- OCR 처방전 인식
-- 약물 상호작용 AI 분석 (비동기)
+- OCR 처방전 인식 (Naver Clova OCR)
+- 약물 상호작용 AI 분석 (BackgroundTasks 비동기)
 - 맞춤형 재활 가이드 생성
-- AI 챗봇 (세션 관리 포함)
+- AI 챗봇 (SSE 스트리밍, 세션 관리 포함)
 - 사용자 피드백
 
 ### Phase 2 (진행 중)
-- 프론트엔드 (React 18 + TypeScript)
+- 프론트엔드 완성도 향상
 - 복약 리마인더 알림
 - 운동 완료 통계 대시보드
 
 ### Phase 3 (장기)
-- AWS S3 연동 (처방전 이미지 클라우드 저장)
+- 클라우드 스토리지 연동 (처방전 이미지)
 - 의사용 요약 리포트
 - 모바일 앱 (React Native)
 
@@ -438,8 +459,7 @@ curl http://localhost:8000/health
 
 ---
 
-**프로젝트 기간**: 2026.02.19 ~ 2026.03.20
+**프로젝트 기간**: 2026.02.19 ~ 2026.03.20  
 **배포 목표일**: 2026.03.13
-```
 
 ---

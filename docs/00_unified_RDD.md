@@ -1,744 +1,107 @@
-# ChronicCare Ortho 요구사항 정의서
+# 만성질환자 AI 건강 관리 서비스 — 통합 RDD (Refined Design Document)
 
-**문서 버전:** v1.0
-
-**작성일:** 2026-02-25
-
-**프로젝트 기간:** 2026.02.19 ~ 2026.03.20
-
-**배포 목표일:** 2026.03.13
-
-**문서 목적:** 만성질환자 정형외과 통합 케어 시스템의 개발 범위, 기능 명세, 검수 기준을 정의한다.
-
-**문서 변경 이력:**
-
-- v1.0 (2026-02-25): 초기 작성 (기획 단계)
+**프로젝트명:** ChronicCare AI  
+**버전:** v2.0 (실제 구현 기준 최종 정리)  
+**작성일:** 2026-03-20  
+**상태:** 구현 완료 (Phase 1)
 
 ---
 
 ## 1. 프로젝트 개요
 
-### 1.1 프로젝트명
+### 1.1 배경 및 목적
 
-**ChronicCare Ortho** (만성질환자 맞춤형 통합 복약·재활 관리 시스템)
+만성질환자는 여러 병원에서 처방받은 약물을 동시에 복용하는 경우가 많아 약물 상호작용 위험에 노출되기 쉽다. 그러나 매번 의사나 약사에게 확인하기 어렵고, 기존 앱들은 단순 복약 알림 수준에 머물러 있다.
 
-### 1.2 배경 및 목적
+**ChronicCare AI**는 처방전 사진 한 장으로:
+1. OCR로 약물 정보를 자동 추출하고
+2. AI가 약물 상호작용을 분석하며
+3. 개인 맞춤형 재활 운동을 추천하고
+4. 챗봇으로 24시간 건강 상담을 제공한다.
 
-**배경:**
+### 1.2 핵심 가치
 
-- 만성질환(당뇨/고혈압/골다공증) 환자가 정형외과 치료를 받을 때, 기존 복용약과 신규 처방약의 상호작용 위험이 높다.
-- 3분 진료 환경에서는 약물 상호작용, 기저질환 고려 재활 가이드를 충분히 제공하기 어렵다.
-- 퇴원 후 ~ 재방문 사이(평균 2주) 환자는 불안과 위험에 노출된다.
+- **접근성:** 처방전 사진 한 장으로 즉시 분석
+- **개인화:** 기저질환 + 복용 약물 + 알러지 기반 맞춤 분석
+- **신뢰성:** temperature=0으로 일관된 AI 응답 (재활만 0.2)
+- **확장성:** Mock 모드, pgvector 준비, S3 마이그레이션 대비 설계
 
-**목적:**
+### 1.3 기술 스택 선정 이유
 
-- OCR 기반 자동 약물 분석으로 복약 관리 부담을 줄인다.
-- 기저질환을 고려한 안전한 재활 운동 가이드를 제공한다.
-- 24시간 챗봇으로 퇴원 후 관리 공백을 메운다.
+#### Backend
 
-### 1.3 범위 (Scope)
+| 기술 | 선정 이유 |
+|------|---------|
+| **FastAPI** | Python 기반 고성능 비동기 웹 프레임워크. 자동 OpenAPI 문서 생성, Pydantic 기반 타입 검증 |
+| **SQLAlchemy 2.0 (async)** | 비동기 ORM. `asyncpg` + `psycopg[binary]` 드라이버로 PostgreSQL 비동기 연결 |
+| **asyncpg + psycopg[binary]** | asyncpg: 고성능 비동기 드라이버 / psycopg: SQLAlchemy 내부 동기 연산 보완 |
+| **BackgroundTasks** | FastAPI 내장 비동기 작업 처리. Celery 없이 OCR→분석 파이프라인 처리 가능 |
+| **Redis 7.2** | 재활 플랜 캐싱. Graceful Degradation 적용 (Redis 연결 실패 시 캐싱 없이 정상 동작) |
+| **JWT + bcrypt** | 무상태 인증. bcrypt로 비밀번호 단방향 해시 |
+| **OpenAI GPT-4o-mini** | 약물 분석, 약물명 표준화, 재활 가이드 생성, 챗봇 전 기능에 활용 |
+| **Naver Clova OCR** | 한글 처방전 특화 OCR. Mock 모드 지원으로 개발 시 API 비용 없이 테스트 가능 |
+| **Mock 모드** | `USE_MOCK_OCR` / `USE_MOCK_ANALYSIS` / `USE_MOCK_CHAT` 환경변수로 외부 API 없이 전체 기능 테스트 가능 |
 
-### 필수 기능 (Core - 16일 내 완성)
+#### Frontend
 
-1. **사용자 프로필 관리** (기저질환, 기존 복용 약물 입력)
-2. **OCR 기반 처방전 인식** (Naver Clova OCR)
-3. **OCR 결과 수정 기능** (사용자 직접 수정)
-4. **약물 상호작용 분석** (LLM 기반)
-5. **복약 시간표 자동 생성**
-6. **맞춤 재활 가이드 생성** (Seed Data 기반)
-7. **RAG 챗봇** (약물/재활 질문 응답)
+| 기술 | 선정 이유 |
+|------|---------|
+| **React 19.2.0** | 최신 Concurrent 렌더링. 컴포넌트 기반 UI 구성 |
+| **TypeScript 5.9** | 정적 타입으로 런타임 오류 사전 방지 |
+| **Zustand 5.0.11** | Redux 대비 보일러플레이트 없음. `persist` 미들웨어 + `sessionStorage` 기반 인증 상태 유지 |
+| **@tanstack/react-query 5** | 서버 상태 관리. 캐싱, 폴링, 리패치 자동 처리 |
+| **react-router-dom v7** | SPA 클라이언트 사이드 라우팅 |
+| **Tailwind CSS 3.4** | 유틸리티 클래스 기반 빠른 UI 개발 |
+| **Vite 7** | 빠른 HMR 및 빌드 |
+| **axios** | HTTP 클라이언트. JWT 인터셉터로 자동 토큰 주입 |
 
-### 선택 기능 (Optional - 시간 여유 시)
+#### Infrastructure
 
-1. 안전 점수 표시 (메인 화면)
-2. 의사용 요약 리포트 (팝업)
-3. 복약 리마인더 (알림)
+| 기술 | 선정 이유 |
+|------|---------|
+| **Docker Compose** | 4개 서비스(postgres, redis, backend, frontend) 단일 명령으로 기동 |
+| **pgvector/pgvector:pg15** | PostgreSQL 15 + pgvector 확장 포함 이미지. 현재 벡터 검색 미사용이나 향후 확장 대비 |
 
-### 제외 사항 (Out of Scope)
+#### Out of Scope (미사용)
 
-- 실제 의료 진단/처방 변경 기능
-- 전자의무기록(EMR) 연동
-- 결제/구독 시스템
-- 웨어러블 기기 연동
-
-### 기술 스택
-
-- Frontend: React + TailwindCSS
-- Backend: FastAPI + PostgreSQL
-- AI: GPT-4 + LangChain + Clova OCR
-- Infra: Docker
+| 기술 | 제외 이유 |
+|------|---------|
+| Celery | FastAPI BackgroundTasks로 충분. 별도 워커 프로세스 불필요 |
+| LangChain | OpenAI SDK 직접 사용. 추가 추상화 레이어 불필요 |
+| AWS S3 | 로컬 `uploads/` 폴더로 충분 (Phase 2에서 S3 마이그레이션 예정) |
+| Pinecone / 벡터 DB | `seed_knowledge.json` 직접 주입 방식 사용. pgvector 이미지는 Docker에 포함되어 있으나 벡터 검색 미구현 |
+| RAG 파이프라인 | 현재 지식 규모에서 프롬프트 직접 주입으로 충분 |
 
 ---
 
 ## 2. 행위 주체 (Actors)
 
-| 행위자 | 역할 | 주요 행동 |
-| --- | --- | --- |
-| **사용자 (User)** | 만성질환을 가진 정형외과 환자 | - 회원가입/로그인<br>- 기저질환 입력<br>- 처방전 업로드<br>- OCR 결과 수정<br>- 분석 결과 확인<br>- 챗봇 질문 |
-| **시스템 (System)** | API 서버 | - 인증/인가<br>- 데이터 저장/조회<br>- 외부 API 중계<br>- 에러 처리 |
-| **AI 워커 (AI Worker)** | 비동기 분석 엔진 | - OCR 처리<br>- LLM 가이드 생성<br>- RAG 검색 |
+| 행위 주체 | 설명 |
+|---------|------|
+| **일반 사용자** | 만성질환자. 처방전 업로드, 분석 결과 확인, 챗봇 상담, 재활 운동 수행 |
+| **FastAPI Backend** | REST API 제공, BackgroundTasks로 비동기 분석 처리 |
+| **Naver Clova OCR** | 처방전 이미지 → 한글 텍스트 변환 |
+| **OpenAI GPT-4o-mini** | 약물명 표준화, 약물 상호작용 분석, 재활 가이드 생성, 챗봇 응답 |
+| **PostgreSQL** | 모든 영구 데이터 저장 (17개 테이블) |
+| **Redis** | 재활 플랜 캐싱 (Graceful Degradation) |
 
 ---
 
-## 3. 타겟 사용자 페르소나
+## 3. 사용자 페르소나
 
-### 페르소나 1: 김영희 (65세, 여성) - 수술 케이스
+### 페르소나 A — 김영희 (68세, 주부)
 
-```
-기저질환: 당뇨(5년) + 골다공증(3년)
-복용약: 메트포르민, 알렌드로네이트, 칼슘/비타민D
-상황: 손목 골절 수술 후 퇴원
-신규 처방: 트라마돌(진통제), 세파클러(항생제), 란소프라졸(위장보호제)
+- **상황:** 고혈압 + 당뇨 + 골다공증으로 3개 병원에서 각각 처방받음
+- **문제:** 약이 너무 많아서 어떤 약이 겹치는지, 같이 먹으면 안 되는 약이 있는지 모름
+- **목표:** 처방전 사진 찍으면 바로 위험한 조합 알려주는 서비스
+- **기술 수준:** 스마트폰 사용 가능, 복잡한 UI는 어려움
 
-니즈:
-- 약이 7~8종류라 복용 시간 헷갈림
-- 골다공증 약 복용법 복잡해서 불안
-- 진통제 먹으면 어지러워서 낙상 위험 걱정
-- 손목 언제부터 움직여도 되는지 모름
-```
+### 페르소나 B — 박민준 (45세, 직장인)
 
-### 페르소나 2: 박철수 (58세, 남성) - 시술 케이스
-
-```
-기저질환: 고혈압(10년) + 고지혈증(3년)
-복용약: 암로디핀, 아토르바스타틴
-상황: 만성 요통으로 신경차단술 후 약물 치료
-신규 처방: 이부프로펜(소염진통제), 에페리손(근이완제), 가바펜틴(신경통약)
-
-니즈:
-- 고혈압 약이랑 진통제 같이 먹어도 되나?
-- 근이완제 먹으면 졸린데 운전해도 되나?
-- 허리 운동 언제부터 시작하나?
-- 혈압이 올라가는 것 같은데 약 때문인가?
-```
-
-### 페르소나 3: 이순자 (72세, 여성) - 일반 질환 케이스
-
-```
-기저질환: 당뇨(15년, 인슐린) + 고혈압(20년) + 골다공증(5년)
-복용약: 인슐린, 텔미사르탄, 알렌드로네이트
-상황: 무릎 관절염으로 스테로이드 주사
-신규 처방: 트리암시놀론(관절 내 주사), 셀레콕시브(소염진통제)
-
-니즈:
-- 주사 맞으면 혈당 올라간다는데 얼마나?
-- 인슐린 용량 조절해야 하나?
-- 무릎 운동 언제부터 해도 되나?
-- 골다공증 있는데 무릎 운동 해도 되나?
-```
-
----
-
-## 4. 시스템 상세 로직
-
-### 4.1 전체 플로우
-
-```
-[사용자 온보딩]
-1. 회원가입 (이메일, 비밀번호)
-2. 기저질환 선택 (당뇨/고혈압/골다공증)
-3. 현재 복용 약물 입력
-4. 알러지 정보 입력 (선택)
-
-         ↓
-
-[처방전 분석]
-5. 처방전 이미지 업로드
-6. OCR 처리 (비동기)
-7. OCR 결과 확인 및 수정 
-8. 분석 시작 버튼 클릭
-
-         ↓
-
-[AI 분석]
-9. 기존 약물 + 신규 약물 병합
-10. 약물 상호작용 분석 (LLM)
-11. 재활 가이드 생성 (LLM + Seed Data)
-12. 결과 DB 저장
-
-         ↓
-
-[결과 확인]
-13. 안전 점수 표시
-14. 약물 상호작용 경고
-15. 복약 시간표
-16. 재활 운동 프로그램
-17. 챗봇으로 추가 질문
-```
-
----
-
-### 4.2 핵심 로직 상세
-
-### A. OCR 처리 로직
-
-**입력:**
-
-- 처방전 이미지 (JPEG/PNG, 최대 10MB)
-
-**처리 단계:**
-
-```
-1. 이미지 업로드 → 임시 저장 (24시간 후 자동 삭제)
-2. Naver Clova OCR API 호출
-3. 응답 JSON 파싱:
-   {
-     "images": [{
-       "fields": [
-         {"inferText": "이부프로펜정 400mg", "inferConfidence": 0.92}
-       ]
-     }]
-   }
-4. 약품명, 용량, 복용법 추출 (정규식)
-5. 신뢰도 점수 계산 (평균 confidence)
-```
-
-**출력:**
-
-```json
-{
-  "ocr_result_id": 123,
-  "confidence_score": 0.90,
-  "medications": [
-    {
-      "name": "이부프로펜정",
-      "dosage": "400mg",
-      "frequency": "1일 3회",
-      "timing": "식후"
-    }
-  ]
-}
-```
-
-**에러 처리:**
-
-| 조건 | 처리 방법 | 사용자 메시지 |
-| --- | --- | --- |
-| 신뢰도 < 0.7 | 수정 요청 | "인식 정확도가 낮습니다. 확인해주세요" |
-| OCR API 실패 | 3회 재시도 | "인식 실패. 직접 입력해주세요" |
-| 이미지 용량 초과 | 업로드 거부 | "10MB 이하 이미지만 가능합니다" |
-
----
-
-### B. 약물 상호작용 분석 로직
-
-**입력:**
-
-```json
-{
-  "user_id": 1,
-  "chronic_medications": [
-    {"name": "메트포르민", "dosage": "500mg"}
-  ],
-  "new_medications": [
-    {"name": "이부프로펜", "dosage": "400mg"}
-  ]
-}
-```
-
-**LLM 프롬프트:**
-
-```
-System: 너는 약물 상호작용 전문가야.
-
-User:
-환자 정보:
-- 기저질환: 당뇨(제2형)
-- 기존 약: 메트포르민 500mg
-- 신규 약: 이부프로펜 400mg
-
-다음 형식으로 분석:
-{
-  "interactions": [
-    {
-      "drug_a": "약물A",
-      "drug_b": "약물B",
-      "severity": "high/medium/low",
-      "mechanism": "상호작용 원리",
-      "recommendation": "권장사항"
-    }
-  ],
-  "schedules": [
-    {
-      "time": "아침 식후",
-      "medications": ["약물A", "약물B"]
-    }
-  ]
-}
-```
-
-**출력 (LLM 응답):**
-
-```json
-{
-  "interactions": [
-    {
-      "drug_a": "메트포르민",
-      "drug_b": "이부프로펜",
-      "severity": "medium",
-      "mechanism": "신장 기능 저하 위험",
-      "recommendation": "복용 중 신장 기능 체크"
-    }
-  ],
-  "schedules": [
-    {
-      "time": "아침 식후",
-      "medications": ["메트포르민", "이부프로펜"],
-      "instructions": "물 한 컵과 함께"
-    }
-  ]
-}
-```
-
-**DB 저장:**
-
-- `drug_interactions` 테이블에 저장
-- `medication_schedules` 테이블에 저장
-
----
-
-### C. 재활 가이드 생성 로직
-
-**전제 조건:**
-
-- `exercise_library` 테이블에 30개 운동 Seed Data 삽입 완료
-
-**입력:**
-
-```json
-{
-  "user_id": 1,
-  "chronic_conditions": ["당뇨", "골다공증"],
-  "target_area": "무릎",
-  "surgery_date": "2026-02-01"
-}
-```
-
-**LLM 프롬프트:**
-
-```
-System: 너는 물리치료사야.
-
-User:
-환자: 당뇨, 골다공증
-수술 부위: 무릎
-수술일: 2026-02-01 (2주 경과)
-
-운동 라이브러리:
-[
-  {"id": "knee01", "name": "큐세팅", "난이도": "하", "태그": ["당뇨안전"]},
-  {"id": "knee02", "name": "SLR", "난이도": "중", "금기": "급성통증"}
-]
-
-제약:
-- 당뇨: 상처 회복 느림
-- 골다공증: 낙상 위험 운동 제외
-
-4주 재활 플랜:
-{
-  "plan": {"target_area": "무릎", "duration_weeks": 4},
-  "exercises": [
-    {"week": 1, "exercise_id": "knee01", "sets": 3, "reps": 10}
-  ]
-}
-```
-
-**출력:**
-
-```json
-{
-  "plan": {
-    "target_area": "무릎",
-    "duration_weeks": 4,
-    "goal": "무릎 가동범위 120도 회복"
-  },
-  "exercises": [
-    {
-      "week": 1,
-      "exercise_id": "knee01",
-      "sets": 3,
-      "reps": 10,
-      "notes": "당뇨 환자 상처 체크 후 시작"
-    }
-  ]
-}
-```
-
-**DB 저장:**
-
-1. `rehab_plans` 테이블에 플랜 저장
-2. `rehab_exercises` 테이블에 주차별 운동 저장
-
-**프론트엔드 표시:**
-
-- 운동명: `exercise_library`에서 `exercise_id`로 조회
-- 영상 링크: `exercise_library.video_url`
-- 태그: [당뇨안전] [저강도] 배지 표시
-
----
-
-### D. RAG 챗봇 로직
-
-**전략:** 데이터 양이 적으므로(Text < 100KB), 벡터 DB 없이 프롬프트에 컨텍스트를 직접 주입하여 개발 속도와 정확도 확보.
-
-**입력 (사용자 질문):**
-
-```
-"이부프로펜 먹으면 어지러운데 운동해도 되나요?"
-```
-
-**처리:**
-
-```
-1. 사용자의 분석 리포트 조회 (DB)
-2. 운동 라이브러리 전체 조회 (DB)
-3. 프롬프트에 컨텍스트 직접 주입
-```
-
-**LLM 프롬프트 (System Prompt 구성):**
-
-```
-System: 너는 물리치료사야. 아래 환자 정보와 분석 리포트를 보고 답변해.
-
-Context:
-[환자 프로필]
-
-질환: 골다공증
-복용약: 이부프로펜
-[현재 분석 리포트]
-
-위험도: 주의
-금기사항: 낙상 주의
-[운동 라이브러리]
-{전체 운동 데이터 JSON}
-
-User: 이부프로펜 먹으면 어지러운데 운동해도 되나요?
-```
-
-**출력:**
-
-```
-이부프로펜은 어지러움을 유발할 수 있습니다.
-골다공증 환자분께서는 낙상 위험이 높으므로,
-약 복용 후 30분간은 운동을 피하시고,
-바닥에 앉아서 하는 운동(큐세팅)을 권장합니다.
-
-⚠️ 정확한 진단은 의사와 상담하세요.
-```
-
-**기술적 제약사항:**
-- OpenAI API 호출 시 `response_format={"type": "json_object"}` 필수
-- JSON 파싱 실패 시 최대 3회 재시도
-- 3회 실패 시 `LLM_002` 에러 반환
-
-
----
-
-## 5. 기능적 요구사항
-
-| ID | 구분 | 카테고리 | 요구사항 명칭 | 상세 내용 | 우선순위 | 검수 기준 |
-| --- | --- | --- | --- | --- | --- | --- |
-| **REQ-001** | 기능 | 인증 | 회원가입 | 이메일, 비밀번호로 회원가입 | High | 중복 이메일 체크 |
-| **REQ-002** | 기능 | 인증 | 로그인 | 이메일+비밀번호 로그인 | High | JWT 토큰 발급 |
-| **REQ-003** | 기능 | 프로필 | 기저질환 입력 | 당뇨/고혈압/골다공증 복수 선택 | High | 최소 1개 선택 |
-| **REQ-004** | 기능 | 프로필 | 기존 약물 입력 | 약품명, 용량, 복용 시간 입력 | High | 약품명 자동완성 |
-| **REQ-005** | 기능 | OCR | 처방전 업로드 | 카메라/갤러리 이미지 선택 | High | JPEG/PNG, 10MB 이하 |
-| **REQ-006** | 기능 | OCR | **OCR 결과 수정** | 인식된 약품명/용량 수정 | **High** | 수정 후 "확인" 버튼 |
-| **REQ-007** | 기능 | OCR | 신뢰도 표시 | OCR 신뢰도 점수 표시 | Medium | 색상 구분 (초록/노랑/빨강) |
-| **REQ-008** | 기능 | 분석 | 약물 상호작용 체크 | 기존약+신규약 상호작용 분석 | **High** | High/Medium 구분 |
-| **REQ-009** | 기능 | 분석 | 복약 시간표 생성 | 시간대별 약물 리스트 | High | 아침/점심/저녁/취침전 |
-| **REQ-010** | 기능 | 재활 | 맞춤 운동 추천 | 기저질환 고려 운동 추천 | **High** | 금기 운동 제외 확인 |
-| **REQ-011** | 기능 | 재활 | 주차별 플랜 | 1~4주차 운동 프로그램 | High | 난이도 점진적 증가 |
-| **REQ-012** | 기능 | 재활 | 영상 링크 제공 | 각 운동마다 유튜브 링크 | High | 링크 클릭 시 새 탭 |
-| **REQ-013** | 기능 | 챗봇 | 질문 응답 | 약물/재활 질문 답변 | High | 3초 이내 응답 |
-| **REQ-014** | 기능 | 챗봇 | 면책 조항 | 모든 응답에 면책 문구 | **High** | "의사 상담" 문구 필수 |
-| **REQ-015** | 기능 | UI | 안전 점수 표시 | 메인 화면 0~100 점수 | Medium | 점수+색상+이모지 |
-| **REQ-016** | 기능 | UI | 로딩 상태 표시 | 분석 중 진행 상황 텍스트 | High | "약물 분석 중..." 표시 |
-| **REQ-017** | 기능 | 이력 | 분석 이력 조회 | 날짜별 과거 분석 리포트 목록 제공 | Medium | 날짜 역순 정렬 |
-| **REQ-018** | 기능 | 시스템 | Seed Data 로딩 | 서버 시작 시 운동/약물 데이터 자동 적재 | **High** | exercises.json 30개 로딩 |
-| **REQ-019** | 기능 | AI 평가 | 피드백 및 로그 수집 | 챗봇 응답에 좋아요/싫어요 버튼, 응답 속도(Latency) DB 저장 | **High** | 모든 응답에 피드백 버튼 |
-
-
----
-
-## 6. 비기능적 요구사항
-
-| ID | 구분 | 요구사항 명칭 | 상세 내용 | 검수 기준 |
-| --- | --- | --- | --- | --- |
-| **NF-001** | 성능 | OCR 처리 속도 | 이미지 업로드 후 5초 이내 결과 | 평균 5초 이하 |
-| **NF-002** | 성능 | 분석 완료 시간 | OCR 확정 후 15초 이내 최종 결과 | 평균 15초 이하 |
-| **NF-003** | 성능 | 챗봇 응답 속도 | 질문 후 3초 이내 답변 시작 | 평균 3초 이하 |
-| **NF-004** | UX | 로딩 피드백 | 5초 이상 작업은 진행 상태 표시 | 텍스트 또는 프로그레스 바 |
-| **NF-005** | UX | 접근성 (폰트) | 기본 폰트 크기 16px 이상 | 모든 텍스트 16px 이상 |
-| **NF-006** | UX | 접근성 (터치) | 버튼 최소 높이 44px | 모든 버튼 44px 이상 |
-| **NF-007** | 보안 | 이미지 삭제 | 처방전 원본 24시간 후 자동 삭제 | S3 Lifecycle 정책 |
-| **NF-008** | 보안 | 데이터 암호화 | 민감 정보 AES-256 암호화 | 약물명, 질환명 암호화 |
-| **NF-009** | 가용성 | 에러 핸들링 | OCR 실패 시 재촬영 유도 | 에러 메시지 + 재시도 버튼 |
-| **NF-010** | 가용성 | LLM 실패 대응 | LLM API 실패 시 3회 재시도 | 3회 실패 후 "분석 실패" |
-| **NF-011** | 기술 | JSON 포맷 강제 | LLM 응답 시 JSON 형식 강제 | `response_format={"type": "json_object"}` 사용 |
-
----
-
-## 7. 데이터베이스 스키마 요약
-
-### 7.1 ERD 관계도
-
-```
-users (1) ─────┬──── (N) chronic_conditions
-               ├──── (N) medications
-               ├──── (N) allergies
-               ├──── (N) documents
-               ├──── (N) guide_results
-               └──── (N) chat_sessions
-
-documents (1) ──── (1) ocr_results
-
-guide_results (1) ─┬─ (N) drug_interactions
-                   ├─ (N) medication_schedules
-                   └─ (1) rehab_plans
-
-rehab_plans (1) ──── (N) rehab_exercises
-
-rehab_exercises (N) ──── (1) exercise_library
-
-chat_sessions (1) ──── (N) chat_messages
-```
-
-### 7.2 핵심 테이블 (16개)
-
-**Tier 1 (필수 - 11개):**
-
-1. `users` - 사용자
-2. `health_profiles` - 건강 프로필
-3. `chronic_conditions` - 만성질환
-4. `medications` - 복용 약물
-5. `allergies` - 알러지
-6. `documents` - 업로드 문서
-7. `ocr_results` - OCR 결과
-8. `guide_results` - AI 분석 결과
-9. `drug_interactions` - 약물 상호작용
-10. `medication_schedules` - 복약 시간표
-11. `exercise_library` - 운동 라이브러리 (Seed Data)
-
-**Tier 2 (중요 - 4개):**
-12. `rehab_plans` - 재활 계획
-13. `rehab_exercises` - 재활 운동 처방
-14. `chat_sessions` - 채팅 세션
-15. `chat_messages` - 채팅 메시지
-
-**Tier 3 (보너스 - 1개):**
-16. `notifications` - 알림
-
----
-
-## 8. 에러 처리 및 예외 상황
-
-### 8.1 OCR 관련 에러
-
-| 에러 코드 | 상황 | 처리 방법 | 사용자 메시지 |
-| --- | --- | --- | --- |
-| `OCR_001` | 이미지 용량 초과 (>10MB) | 업로드 거부 | "이미지 용량은 10MB 이하여야 합니다" |
-| `OCR_002` | 지원하지 않는 파일 형식 | 업로드 거부 | "JPEG 또는 PNG 파일만 가능합니다" |
-| `OCR_003` | OCR API 실패 (3회 재시도 후) | 수동 입력 모드 | "인식 실패. 직접 입력해주세요" |
-| `OCR_004` | 신뢰도 < 0.7 | 수동 확인 요청 | "인식 정확도가 낮습니다. 확인해주세요" |
-
-### 8.2 LLM 관련 에러
-
-| 에러 코드 | 상황 | 처리 방법 | 사용자 메시지 |
-| --- | --- | --- | --- |
-| `LLM_001` | API 호출 실패 | 3회 재시도 | "분석 중 오류 발생. 다시 시도해주세요" |
-| `LLM_002` | JSON 형식 오류 | 재요청 | "분석 결과 처리 중 오류 발생" |
-| `LLM_003` | 타임아웃 (30초 초과) | 작업 취소 | "분석 시간 초과. 다시 시도해주세요" |
-
----
-
-## 9. 검수 체크리스트
-
-### 9.1 기능 검수
-
-```
-□ 회원가입 및 로그인 작동
-□ 기저질환 선택 및 저장
-□ 기존 약물 입력 및 조회
-□ 처방전 이미지 업로드 성공
-□ OCR 결과 정확도 90% 이상 (테스트 이미지 10장)
-□ OCR 결과 수정 기능 작동
-□ 약물 상호작용 분석 정확도 95% 이상 (테스트 20개)
-□ 복약 시간표 자동 생성
-□ 재활 운동 추천 (금기 운동 제외)
-□ 주차별 운동 프로그램 생성
-□ 운동 영상 링크 클릭 시 새 탭
-□ 챗봇 질문 응답 정확도 90% 이상 (테스트 20개)
-□ 모든 응답에 면책 문구 포함
-```
-
-### 9.2 성능 검수
-
-```
-□ OCR 처리 시간 5초 이내 (평균)
-□ 분석 완료 시간 15초 이내 (평균)
-□ 챗봇 응답 시간 3초 이내 (평균)
-□ 페이지 로딩 시간 2초 이내
-```
-
-### 9.3 UI/UX 검수
-
-```
-□ 모든 텍스트 16px 이상
-□ 모든 버튼 44px 이상 높이
-□ 색상 대비 명확 (WCAG AA 기준)
-□ 로딩 시 진행 상황 표시
-□ 에러 메시지 명확하게 표시
-□ 모바일 반응형 디자인
-```
-
----
-
-## 10. 개발 일정
-
-| 기간 | 작업 내용 | 산출물 |
-| --- | --- | --- |
-| **Day 1-2** | DB 설계 + Seed Data | ERD, **exercises.json 작성 및 로딩 스크립트 구현** |
-| **Day 3-5** | OCR + LLM 로직 | API 엔드포인트 5개, **비동기 처리 구현** |
-| **Day 6-9** | Frontend 개발 | 핵심 화면 7개 |
-| **Day 10-12** | 챗봇 + 완성도 | **Context Injection 챗봇 구현** |
-| **Day 13-14** | 테스트 + 버그 수정 | 테스트 리포트, **P95 Latency 측정** |
-| **Day 15-16** | 발표 준비 | PPT, 데모 영상 |
-
----
-
-## 11. 성공 지표 (KPI)
-
-### 11.1 개발 완성도
-# ChronicCare Ortho 요구사항 정의서 (최종 완전판)
-
-**문서 버전:** v2.0 (시스템 아키텍처 추가)
-
-**작성일:** 2026-02-26
-
-**프로젝트 기간:** 2026.02.19 ~ 2026.03.20
-
-**배포 목표일:** 2026.03.13
-
-**문서 목적:** 만성질환자 정형외과 통합 케어 시스템의 개발 범위, 기능 명세, 검수 기준을 정의한다.
-
-**문서 변경 이력:**
-
-- v1.0 (2026-02-25): 초기 작성 (기획 단계)
-- v2.0 (2026-02-26): 시스템 아키텍처 섹션 추가, requirements.txt 추가, Docker Compose 수정
-
----
-
-## 1. 프로젝트 개요
-
-### 1.1 프로젝트명
-
-**ChronicCare Ortho** (만성질환자 맞춤형 통합 복약·재활 관리 시스템)
-
-### 1.2 배경 및 목적
-
-**배경:**
-
-- 만성질환(당뇨/고혈압/골다공증) 환자가 정형외과 치료를 받을 때, 기존 복용약과 신규 처방약의 상호작용 위험이 높다.
-- 3분 진료 환경에서는 약물 상호작용, 기저질환 고려 재활 가이드를 충분히 제공하기 어렵다.
-- 퇴원 후 ~ 재방문 사이(평균 2주) 환자는 불안과 위험에 노출된다.
-
-**목적:**
-
-- OCR 기반 자동 약물 분석으로 복약 관리 부담을 줄인다.
-- 기저질환을 고려한 안전한 재활 운동 가이드를 제공한다.
-- 24시간 챗봇으로 퇴원 후 관리 공백을 메운다.
-
-### 1.3 범위 (Scope)
-
-### 필수 기능 (Core - 16일 내 완성)
-
-1. **사용자 프로필 관리** (기저질환, 기존 복용 약물 입력)
-2. **OCR 기반 처방전 인식** (Naver Clova OCR)
-3. **OCR 결과 수정 기능** (사용자 직접 수정)
-4. **약물 상호작용 분석** (LLM 기반)
-5. **복약 시간표 자동 생성**
-6. **맞춤 재활 가이드 생성** (Seed Data 기반)
-7. **RAG 챗봇** (약물/재활 질문 응답)
-
-### 선택 기능 (Optional - 시간 여유 시)
-
-1. 안전 점수 표시 (메인 화면)
-2. 의사용 요약 리포트 (팝업)
-3. 복약 리마인더 (알림)
-
-### 제외 사항 (Out of Scope)
-
-- 실제 의료 진단/처방 변경 기능
-- 전자의무기록(EMR) 연동
-- 결제/구독 시스템
-- 웨어러블 기기 연동
-
-### 기술 스택
-
-- Frontend: React + TailwindCSS
-- Backend: FastAPI + PostgreSQL
-- AI: GPT-4 + LangChain + Clova OCR
-- Infra: Docker
-
----
-
-## 2. 행위 주체 (Actors)
-
-| 행위자 | 역할 | 주요 행동 |
-| --- | --- | --- |
-| **사용자 (User)** | 만성질환을 가진 정형외과 환자 | - 회원가입/로그인<br>- 기저질환 입력<br>- 처방전 업로드<br>- OCR 결과 수정<br>- 분석 결과 확인<br>- 챗봇 질문 |
-| **시스템 (System)** | API 서버 | - 인증/인가<br>- 데이터 저장/조회<br>- 외부 API 중계<br>- 에러 처리 |
-| **AI 워커 (AI Worker)** | 비동기 분석 엔진 | - OCR 처리<br>- LLM 가이드 생성<br>- RAG 검색 |
-
----
-
-## 3. 타겟 사용자 페르소나
-
-### 페르소나 1: 김영희 (65세, 여성) - 수술 케이스
-
-```
-기저질환: 당뇨(5년) + 골다공증(3년)
-복용약: 메트포르민, 알렌드로네이트, 칼슘/비타민D
-상황: 손목 골절 수술 후 퇴원
-신규 처방: 트라마돌(진통제), 세파클러(항생제), 란소프라졸(위장보호제)
-
-니즈:
-- 약이 7~8종류라 복용 시간 헷갈림
-- 골다공증 약 복용법 복잡해서 불안
-- 진통제 먹으면 어지러워서 낙상 위험 걱정
-- 손목 언제부터 움직여도 되는지 모름
-```
-
-### 페르소나 2: 박철수 (58세, 남성) - 시술 케이스
-
-```
-기저질환: 고혈압(10년) + 고지혈증(3년)
-복용약: 암로디핀, 아토르바스타틴
-상황: 만성 요통으로 신경차단술 후 약물 치료
-신규 처방: 이부프로펜(소염진통제), 에페리손(근이완제), 가바펜틴(신경통약)
-
-니즈:
-- 고혈압 약이랑 진통제 같이 먹어도 되나?
-- 근이완제 먹으면 졸린데 운전해도 되나?
-- 허리 운동 언제부터 시작하나?
-- 혈압이 올라가는 것 같은데 약 때문인가?
-```
-
-### 페르소나 3: 이순자 (72세, 여성) - 일반 질환 케이스
-
-```
-기저질환: 당뇨(15년, 인슐린) + 고혈압(20년) + 골다공증(5년)
-복용약: 인슐린, 텔미사르탄, 알렌드로네이트
-상황: 무릎 관절염으로 스테로이드 주사
-신규 처방: 트리암시놀론(관절 내 주사), 셀레콕시브(소염진통제)
-
-니즈:
-- 주사 맞으면 혈당 올라간다는데 얼마나?
-- 인슐린 용량 조절해야 하나?
-- 무릎 운동 언제부터 해도 되나?
-- 골다공증 있는데 무릎 운동 해도 되나?
-```
+- **상황:** 허리디스크 수술 후 재활 중. 어떤 운동을 해야 할지 모름
+- **문제:** 병원 재활치료는 비싸고 시간도 없음
+- **목표:** 내 상태에 맞는 집에서 할 수 있는 운동 루틴
+- **기술 수준:** 스마트폰/PC 모두 능숙
 
 ---
 
@@ -748,68 +111,61 @@ chat_sessions (1) ──── (N) chat_messages
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         사용자 (User)                            │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
+│                          Client Layer                           │
+│                                                                 │
+│  React 19.2 + TypeScript + Vite 7                               │
+│  ├── 상태관리: Zustand 5.0.11 (persist + sessionStorage)          │
+│  ├── 서버 상태: @tanstack/react-query 5                           │
+│  ├── 라우팅: react-router-dom v7                                 │
+│  ├── HTTP: axios (JWT 인터셉터)                                   │
+│  └── 스타일: Tailwind CSS 3.4                                     │
+│                                                                 │
+│  페이지 (11개):                                                   │
+│  Landing · Login · Register · profileSetup · Dashboard          │
+│  PrescriptionAnalysis · AnalysisResult · Rehabilitation         │
+│  Chat · MyPage · HealthProfile                                  │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ HTTPS (REST API / SSE)
+                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Frontend (React + TypeScript)                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ 온보딩 화면   │  │ OCR 화면     │  │ 분석 결과    │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ 재활 플랜     │  │ 챗봇 화면    │  │ 대시보드     │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ HTTPS (REST API)
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Backend (FastAPI)                             │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  API Layer (Routers)                                      │   │
-│  │  /auth  /profile  /ocr  /analysis  /rehab  /chat         │   │
-│  └────────────────────┬─────────────────────────────────────┘   │
-│                       │                                          │
-│  ┌────────────────────▼─────────────────────────────────────┐   │
-│  │  Service Layer                                            │   │
-│  │  ocr_service  llm_service  rag_service  s3_service       │   │
-│  └────────────────────┬─────────────────────────────────────┘   │
-│                       │                                          │
-│  ┌────────────────────▼─────────────────────────────────────┐   │
-│  │  Data Layer (SQLAlchemy Models)                          │   │
-│  │  User  Medication  Document  GuideResult  RehabPlan      │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ PostgreSQL   │  │    Redis     │  │   Celery     │
-│   (Main DB)  │  │  (Cache +    │  │  (Async      │
-│              │  │   Queue)     │  │   Tasks)     │
-└──────────────┘  └──────────────┘  └──────────────┘
-
-        │                   │                   │
-        └───────────────────┴───────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│  Naver OCR   │  │  OpenAI GPT  │  │  Pinecone    │
-│   (한글 인식) │  │  (약물 분석)  │  │  (RAG 검색)  │
-└──────────────┘  └──────────────┘  └──────────────┘
-
-        │
-        ▼
-┌──────────────┐
-│   AWS S3     │
-│ (이미지 저장) │
-└──────────────┘
+│                          API Layer                              │
+│                                                                 │
+│  FastAPI 0.115 + uvicorn                                        │
+│  ├── /api/v1/auth       register · login · me · password · 탈퇴  │
+│  ├── /api/v1/profile    conditions · medications · allergies    │
+│  ├── /api/v1/documents  upload → uploads/ 로컬 저장               │
+│  ├── /api/v1/analysis   분석 시작 · 상태 폴링 · 이력 · 삭제            │
+│  ├── /api/v1/rehab      플랜 · 운동 · 완료 기록 · 진행률              │
+│  ├── /api/v1/chat       일반 · SSE 스트리밍 · 세션 관리               │
+│  └── /api/v1/feedback   제출 · 조회 · 삭제                          │
+└──────┬───────────────────────────────────┬───────────────────────┘
+       │                                   │
+       ▼                                   ▼
+┌──────────────────┐          ┌────────────────────────────────────┐
+│   Data Layer     │          │          AI Worker Layer           │
+│                  │          │                                    │
+│  PostgreSQL      │          │  ocr_service.py                    │
+│  (pgvector/      │          │  └─ Naver Clova OCR                │
+│   pgvector:pg15) │◄─────────│     Mock 모드 지원                   │
+│                  │          │                                    │
+│  Redis 7.2       │          │  drug_normalizer.py                │
+│  (캐싱,           │          │  └─ GPT-4o-mini (temperature=0)    │
+│   Graceful       │          │     OCR 약물명 오타 보정/표준화          │
+│   Degradation)   │          │                                    │
+│                  │          │  analysis_service.py               │
+│  uploads/        │          │  └─ GPT-4o-mini (temperature=0)    │
+│  (처방전 이미지     │          │     약물 상호작용 분석                  │
+│   임시 저장)       │          │                                    │
+└──────────────────┘          │  rehab_service.py                  │
+                              │  └─ GPT-4o-mini (temperature=0.2)  │
+                              │     재활 가이드 생성                   │
+                              │                                    │
+                              │  chat_service.py                   │
+                              │  └─ GPT-4o-mini (temperature=0)    │
+                              │     SSE 스트리밍                     │
+                              │     seed_knowledge.json 컨텍스트 주입 │
+                              └────────────────────────────────────┘
 ```
-
----
 
 ### 4.2 데이터 플로우 (Data Flow)
 
@@ -817,822 +173,294 @@ chat_sessions (1) ──── (N) chat_messages
 
 ```
 1. 사용자가 처방전 이미지 업로드
-   │
-   ▼
-2. Frontend → POST /api/ocr/upload (이미지 파일)
-   │
-   ▼
+
+2. Frontend → POST /api/v1/documents/upload (이미지 파일)
+
 3. Backend (ocr_service.py)
-   ├─► AWS S3에 이미지 업로드 (24시간 후 자동 삭제)
-   ├─► Naver Clova OCR API 호출
-   └─► OCR 결과 파싱 (정규식)
-   │
-   ▼
+   ├─ 로컬 uploads/ 폴더에 이미지 저장 (24시간 후 자동 삭제)
+   ├─ Naver Clova OCR API 호출
+   └─ OCR 결과 파싱 (정규식)
+
 4. DB 저장 (documents, ocr_results 테이블)
-   │
-   ▼
+
 5. Frontend → OCR 결과 확인 화면 (사용자가 수정 가능)
-   │
-   ▼
+
 6. 사용자가 "분석 시작" 버튼 클릭
-   │
-   ▼
-7. Frontend → POST /api/analysis/generate
-   │
-   ▼
-8. Backend → Celery 작업 시작 (비동기)
-   ├─► 기존 약물 조회 (medications 테이블)
-   ├─► 신규 약물 조회 (ocr_results 테이블)
-   ├─► LLM 약물 표준화 (OpenAI GPT-4)
-   ├─► LLM 상호작용 분석 (OpenAI GPT-4)
-   ├─► LLM 재활 가이드 생성 (OpenAI GPT-4)
-   └─► DB 저장 (guide_results, drug_interactions, rehab_plans 테이블)
-   │
-   ▼
-9. Frontend → 3초마다 폴링 (GET /api/analysis/status/{task_id})
-   │
-   ▼
+
+7. Frontend → POST /api/v1/analysis/{document_id}
+
+8. Backend → FastAPI BackgroundTasks로 비동기 처리 (즉시 202 반환)
+   ├─ 기존 약물 조회 (medications 테이블)
+   ├─ 신규 약물 조회 (ocr_results 테이블)
+   ├─ drug_normalizer.py: OCR 약물명 표준화 (GPT-4o-mini, temperature=0)
+   ├─ analysis_service.py: 약물 상호작용 분석 (GPT-4o-mini, temperature=0)
+   ├─ rehab_service.py: 재활 가이드 생성 (GPT-4o-mini, temperature=0.2)
+   └─ DB 저장 (guide_results, drug_interactions, rehab_plans 테이블)
+
+9. Frontend → 폴링 (GET /api/v1/analysis/{guide_result_id}/status)
+   └─ status: "pending" → 계속 폴링
+   └─ status: "completed" → 결과 페이지 이동
+
 10. 분석 완료 시 → 결과 페이지로 이동
 ```
 
-#### 4.2.2 챗봇 질문 → 답변 플로우
+#### 4.2.2 챗봇 질문 → 답변 플로우 (SSE 스트리밍)
 
 ```
 1. 사용자가 챗봇 화면에서 질문 입력
-   │
-   ▼
-2. Frontend → POST /api/chat/sessions (컨텍스트 포함)
-   │
-   ▼
+
+2. Frontend → POST /api/v1/chat (세션 없을 경우 세션 생성 포함)
+
 3. Backend → ChatSession 생성 (context_type, context_id 저장)
-   │
-   ▼
-4. Frontend → POST /api/chat/sessions/{session_id}/messages
-   │
-   ▼
-5. Backend (rag_service.py)
-   ├─► 컨텍스트 로드 (현재 보고 있는 화면 정보)
-   ├─► Pinecone 벡터 검색 (유사 문서 3개)
-   ├─► 사용자 프로필 로드 (기저질환, 복용약)
-   └─► OpenAI GPT-4 호출 (프롬프트 구성)
-   │
-   ▼
-6. Backend → ChatMessage 저장 (role: assistant)
-   │
-   ▼
-7. Frontend → 챗봇 응답 표시
+
+4. Frontend → POST /api/v1/chat/stream (SSE 스트리밍 요청)
+
+5. Backend (chat_service.py)
+   ├─ 컨텍스트 로드 (현재 보고 있는 분석 결과)
+   ├─ 사용자 프로필 로드 (기저질환, 복용약)
+   ├─ 분석 리포트 + seed_knowledge.json → 프롬프트에 직접 주입
+   └─ GPT-4o-mini 호출 (stream=True, temperature=0)
+
+6. Backend → SSE 스트리밍으로 청크 단위 전송
+   data: {"chunk": "이부프로펜은"}\n\n
+   data: {"chunk": " 어지러움을"}\n\n
+   ...
+
+7. Frontend → 실시간 텍스트 렌더링
 ```
 
----
+### 4.3 컴포넌트 간 통신
 
-### 4.3 컴포넌트 간 통신 (Component Communication)
+#### 4.3.1 Frontend ↔ Backend 통신 규칙
 
-#### 4.3.1 Frontend ↔ Backend
-
-**프로토콜:** HTTPS (REST API)
-
-**인증 방식:** JWT Bearer Token
-
-**요청 예시:**
 ```typescript
-// frontend/src/api/client.ts
-import axios from 'axios';
-
-const client = axios.create({
-  baseURL: 'http://localhost:8000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+// src/api/client.ts — axios 인스턴스
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL, // http://localhost:8000/api/v1
+  timeout: 30000,
 });
 
-// JWT 토큰 자동 추가
-client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+// JWT 자동 주입 인터셉터
+apiClient.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().token;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
-
-export default client;
 ```
 
-**응답 형식:** JSON
+#### 4.3.2 SSE 스트리밍 수신
 
-**에러 처리:**
 ```typescript
-// 401 Unauthorized → 로그인 페이지로 리다이렉트
-client.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
+// EventSource로 SSE 수신
+const eventSource = new EventSource(
+  `/api/v1/chat/stream?session_id=${sessionId}`
 );
+eventSource.onmessage = (e) => {
+  const { chunk } = JSON.parse(e.data);
+  setResponse((prev) => prev + chunk);
+};
 ```
 
-#### 4.3.2 Backend ↔ PostgreSQL
+### 4.4 인프라 구성
 
-**연결 방식:** SQLAlchemy ORM
-
-**연결 풀 설정:**
-```python
-# app/core/database.py
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_size=10,          # 기본 연결 10개
-    max_overflow=20,       # 최대 30개까지 확장
-    pool_pre_ping=True,    # 연결 유효성 체크
-    pool_recycle=3600,     # 1시간마다 연결 재생성
-    echo=False             # SQL 로그 비활성화 (프로덕션)
-)
-```
-
-**트랜잭션 관리:**
-```python
-# 자동 커밋/롤백
-@router.post("/register")
-async def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    try:
-        user = User(email=request.email, ...)
-        db.add(user)
-        db.commit()  # 성공 시 커밋
-        return {"user_id": user.id}
-    except Exception as e:
-        db.rollback()  # 실패 시 롤백
-        raise HTTPException(status_code=500, detail=str(e))
-```
-
-#### 4.3.3 Backend ↔ Redis
-
-**사용 목적:**
-1. **Celery 작업 큐** (비동기 작업)
-2. **캐싱** (자주 조회되는 데이터)
-
-**연결 설정:**
-```python
-# app/core/cache.py
-import redis
-
-redis_client = redis.from_url(
-    settings.REDIS_URL,
-    decode_responses=True
-)
-
-# 캐싱 예시
-def get_user_profile(user_id: int):
-    cache_key = f"user_profile:{user_id}"
-    
-    # 캐시 확인
-    cached = redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
-    
-    # DB 조회
-    user = db.query(User).filter_by(id=user_id).first()
-    
-    # 캐시 저장 (1시간)
-    redis_client.setex(cache_key, 3600, json.dumps(user.dict()))
-    
-    return user
-```
-
-#### 4.3.4 Backend ↔ External APIs
-
-**Naver Clova OCR:**
-```python
-# services/ocr_service.py
-import requests
-
-def call_naver_ocr(image_url: str) -> dict:
-    response = requests.post(
-        settings.NAVER_OCR_API_URL,
-        headers={
-            "X-OCR-SECRET": settings.NAVER_OCR_SECRET,
-            "Content-Type": "application/json"
-        },
-        json={"images": [{"url": image_url}]},
-        timeout=30  # 30초 타임아웃
-    )
-    response.raise_for_status()
-    return response.json()
-```
-
-**OpenAI GPT-4:**
-```python
-# services/llm_service.py
-from openai import OpenAI
-
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
-
-def analyze_drug_interactions(prompt: str) -> dict:
-    response = client.chat.completions.create(
-        model="gpt-4-turbo-preview",
-        messages=[
-            {"role": "system", "content": "너는 임상 약사입니다."},
-            {"role": "user", "content": prompt}
-        ],
-        response_format={"type": "json_object"},
-        timeout=60  # 60초 타임아웃
-    )
-    return json.loads(response.choices[0].message.content)
-```
-
-**Pinecone (RAG):**
-```python
-# services/rag_service.py
-from pinecone import Pinecone
-
-pc = Pinecone(api_key=settings.PINECONE_API_KEY)
-index = pc.Index(settings.PINECONE_INDEX_NAME)
-
-def search_similar_documents(query: str, top_k: int = 3) -> list:
-    # 쿼리 임베딩
-    embedding = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=query
-    ).data[0].embedding
-    
-    # 벡터 검색
-    results = index.query(
-        vector=embedding,
-        top_k=top_k,
-        include_metadata=True
-    )
-    
-    return [match.metadata for match in results.matches]
-```
-
----
-
-### 4.4 배포 아키텍처 (Deployment Architecture)
-
-#### 4.4.1 로컬 개발 환경 (Docker Compose)
+#### 4.4.1 Docker Compose 구성
 
 ```yaml
-# docker-compose.yml
-version: '3.8'
-
 services:
-  # PostgreSQL
   postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: chroniccare
-    ports:
-      - "5432:5432"
+    image: pgvector/pgvector:pg15      # pgvector 확장 포함
+    ports: "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./data/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./data/seed_exercises.sql:/docker-entrypoint-initdb.d/02_seed_exercises.sql
+    healthcheck: pg_isready
 
-  # Redis
   redis:
     image: redis:7.2
-    ports:
-      - "6379:6379"
+    ports: "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck: redis-cli ping
 
-  # Backend (FastAPI)
   backend:
-    build: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/chroniccare
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - postgres
-      - redis
+    build: ./chroniccare-backend/Dockerfile
+    ports: "8000:8000"
     volumes:
-      - ./backend:/app
-
-  # Celery Worker
-  celery:
-    build: ./backend
-    command: celery -A app.tasks.celery_app worker --loglevel=info
-    environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/chroniccare
-      - REDIS_URL=redis://redis:6379/0
+      - ./chroniccare-backend/uploads:/app/uploads
     depends_on:
-      - postgres
-      - redis
-    # 🚨 중요: 코드 수정 시 Celery도 반영되도록 볼륨 마운트 필수!
-    volumes:
-      - ./backend:/app
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
 
-  # Frontend (React)
   frontend:
-    build: ./frontend
-    command: npm run dev -- --host
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-    environment:
-      - VITE_API_URL=http://localhost:8000/api
+    build: ./chroniccare-frontend/Dockerfile
+    ports: "5173:5173"
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
+  redis_data:
 ```
 
-**실행 명령어:**
-```bash
-# 전체 서비스 시작
-docker-compose up -d
+### 4.5 보안 아키텍처
 
-# 로그 확인
-docker-compose logs -f backend
+| 계층 | 보안 조치 |
+|------|---------|
+| **인증** | JWT (HS256, python-jose). 토큰 만료 시 재로그인 |
+| **비밀번호** | bcrypt 단방향 해시. 평문 저장 절대 금지 |
+| **API 보호** | 모든 `/api/v1/*` 엔드포인트 JWT 필수 (로그인/회원가입 제외) |
+| **파일 업로드** | 10MB 이하 이미지만 허용. uploads/ 폴더 격리 |
+| **환경 변수** | `.env` 파일 `.gitignore` 처리. 값은 절대 코드에 하드코딩 금지 |
+| **CORS** | FastAPI CORS 미들웨어로 허용 Origin 제한 |
 
-# Celery 워커 재시작 (코드 수정 후)
-docker-compose restart celery
+### 4.6 성능 설계
 
-# 서비스 중지
-docker-compose down
-```
+#### 4.6.1 응답 시간 목표
 
-#### 4.4.2 프로덕션 환경 (선택 사항)
-
-**Frontend:** Vercel (무료)
-- React 앱 자동 빌드 및 배포
-- CDN 자동 설정
-- HTTPS 자동 설정
-
-**Backend:** Railway (무료 티어)
-- PostgreSQL 호스팅
-- Redis 호스팅
-- FastAPI 앱 배포
-- 환경 변수 관리
-
-**배포 플로우:**
-```
-1. GitHub에 코드 푸시
-   │
-   ▼
-2. Vercel이 자동으로 Frontend 빌드
-   │
-   ▼
-3. Railway가 자동으로 Backend 배포
-   │
-   ▼
-4. 환경 변수 설정 (Railway 대시보드)
-   │
-   ▼
-5. 배포 완료 (URL 자동 생성)
-```
-
----
-
-### 4.5 보안 아키텍처 (Security Architecture)
-
-#### 4.5.1 인증 플로우 (Authentication Flow)
-
-```
-1. 사용자 로그인 요청
-   │
-   ▼
-2. Backend → 비밀번호 검증 (bcrypt)
-   │
-   ▼
-3. JWT 토큰 생성 (payload: user_id, exp: 24시간)
-   │
-   ▼
-4. Frontend → localStorage에 토큰 저장
-   │
-   ▼
-5. 이후 모든 요청에 Authorization 헤더 추가
-   │
-   ▼
-6. Backend → JWT 검증 (get_current_user 미들웨어)
-   │
-   ▼
-7. 유효하면 요청 처리, 무효하면 401 반환
-```
-
-#### 4.5.2 데이터 보안
-
-**민감 정보 암호화:**
-- ✅ 비밀번호: bcrypt (rounds=12)
-- ✅ API 키: 환경 변수 (.env, 절대 Git에 커밋 금지)
-- ✅ JWT 시크릿: 환경 변수
-
-**HTTPS 강제:**
-```python
-# app/main.py
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-
-app = FastAPI()
-
-# 프로덕션에서만 HTTPS 강제
-if settings.ENVIRONMENT == "production":
-    app.add_middleware(HTTPSRedirectMiddleware)
-```
-
-**CORS 설정:**
-```python
-# app/main.py
-from fastapi.middleware.cors import CORSMiddleware
-
-# 🚨 중요: 로컬 개발 시 localhost와 127.0.0.1 모두 허용
-origins = [
-    settings.FRONTEND_URL,      # 프로덕션 URL
-    "http://localhost:3000",    # 로컬 React 개발 서버
-    "http://127.0.0.1:3000",    # 로컬 React (IP 접속 시)
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,      # 목록 사용
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-
----
-
-### 4.6 성능 최적화 (Performance Optimization)
-
-#### 4.6.1 데이터베이스 최적화
-
-**인덱스 전략:**
-```python
-# 자주 조회되는 컬럼에 인덱스
-Index('idx_medications_standardized_name', 'standardized_name')
-Index('idx_rehab_plans_user_active', 'user_id', 'is_active')
-Index('idx_chat_sessions_user_status', 'user_id', 'status')
-```
-
-**쿼리 최적화:**
-```python
-# ❌ N+1 문제 (나쁜 예)
-users = db.query(User).all()
-for user in users:
-    print(user.medications)  # 각 사용자마다 쿼리 발생!
-
-# ✅ Eager Loading (좋은 예)
-from sqlalchemy.orm import joinedload
-
-users = db.query(User).options(
-    joinedload(User.medications),
-    joinedload(User.chronic_conditions)
-).all()
-```
+| 기능 | 목표 | 실측 (temperature=0) |
+|------|------|-------------------|
+| OCR 처리 | < 5초 | - |
+| 약물 상호작용 분석 | < 30초 (비동기) | 평균 2.27초 (GPT 응답만) |
+| 재활 가이드 생성 | < 30초 (비동기) | - |
+| 챗봇 첫 청크 | < 2초 | - |
+| API 일반 응답 | < 200ms | - |
 
 #### 4.6.2 캐싱 전략
 
-**Redis 캐싱:**
-```python
-# 자주 조회되는 데이터 캐싱
-@router.get("/exercises/{exercise_id}")
-async def get_exercise(exercise_id: str):
-    cache_key = f"exercise:{exercise_id}"
-    
-    # 캐시 확인
-    cached = redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
-    
-    # DB 조회
-    exercise = db.query(ExerciseLibrary).filter_by(
-        exercise_id=exercise_id
-    ).first()
-    
-    # 캐시 저장 (1시간)
-    redis_client.setex(cache_key, 3600, json.dumps(exercise.dict()))
-    
-    return exercise
+```
+Redis 캐싱 적용 대상:
+- 재활 플랜 조회 (GET /api/v1/rehab/plans)
+- TTL: 1시간
+
+Graceful Degradation:
+- Redis 연결 실패 시 캐싱 없이 DB 직접 조회
+- 서비스 중단 없음
 ```
 
-#### 4.6.3 비동기 처리
+#### 4.6.3 비동기 처리 전략
 
-**Celery 작업 분리:**
-```python
-# 시간이 오래 걸리는 작업은 Celery로 분리
-@celery_app.task
-def analyze_medications(user_id: int, ocr_result_id: int):
-    # LLM 호출 (15초 소요)
-    # 사용자는 기다리지 않고 다른 작업 가능
-    pass
-```
+| 처리 유형 | 구현 방식 | 적용 위치 |
+|---------|---------|---------|
+| OCR + AI 분석 파이프라인 | FastAPI BackgroundTasks | `POST /api/v1/analysis/{document_id}` |
+| 챗봇 응답 스트리밍 | SSE (Server-Sent Events) | `POST /api/v1/chat/stream` (별도 엔드포인트) |
+| DB 쿼리 | SQLAlchemy async + asyncpg | 전체 라우터 |
+| Redis 캐싱 | redis-py async + Graceful Degradation | `GET /api/v1/rehab/plans` 등 |
+| 외부 API 호출 | httpx (async) | ocr_service.py |
 
 ---
 
-### 4.7 모니터링 및 로깅 (Monitoring & Logging)
+## 5. 핵심 기능 상세 설계
 
-#### 4.7.1 로깅 전략
+### 5.1 OCR 처리 로직
 
-```python
-# app/core/logging.py
-import logging
-
-# 로거 설정
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('app.log'),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger(__name__)
-
-# 사용 예시
-@router.post("/ocr/upload")
-async def upload_prescription(file: UploadFile):
-    logger.info(f"OCR 업로드 시작: {file.filename}")
-    try:
-        result = process_ocr(file)
-        logger.info(f"OCR 성공: {result.id}")
-        return result
-    except Exception as e:
-        logger.error(f"OCR 실패: {str(e)}", exc_info=True)
-        raise
-```
-
-#### 4.7.2 에러 추적
-
-**Sentry 연동 (선택 사항):**
-```python
-# app/main.py
-import sentry_sdk
-
-sentry_sdk.init(
-    dsn=settings.SENTRY_DSN,
-    traces_sample_rate=1.0,
-)
-```
-
----
-
-## 5. 시스템 상세 로직
-
-### 5.1 전체 플로우
+#### A. OCR 처리 플로우
 
 ```
-[사용자 온보딩]
-1. 회원가입 (이메일, 비밀번호)
-2. 기저질환 선택 (당뇨/고혈압/골다공증)
-3. 현재 복용 약물 입력
-4. 알러지 정보 입력 (선택)
-
-         ↓
-
-[처방전 분석]
-5. 처방전 이미지 업로드
-6. OCR 처리 (비동기)
-7. OCR 결과 확인 및 수정 
-8. 분석 시작 버튼 클릭
-
-         ↓
-
-[AI 분석]
-9. 기존 약물 + 신규 약물 병합
-10. 약물 상호작용 분석 (LLM)
-11. 재활 가이드 생성 (LLM + Seed Data)
-12. 결과 DB 저장
-
-         ↓
-
-[결과 확인]
-13. 안전 점수 표시
-14. 약물 상호작용 경고
-15. 복약 시간표
-16. 재활 운동 프로그램
-17. 챗봇으로 추가 질문
+입력: 처방전 이미지 (JPG/PNG, 10MB 이하)
+  ↓
+1. 이미지 유효성 검사
+   - 파일 크기 ≤ 10MB
+   - 지원 형식: JPG, PNG
+  ↓
+2. uploads/ 폴더에 임시 저장
+  ↓
+3. Naver Clova OCR API 호출
+   - 한글 처방전 특화
+   - 신뢰도(confidence) 점수 반환
+  ↓
+4. OCR 결과 파싱 (정규식)
+   - 약물명, 용량, 복용 횟수 추출
+  ↓
+5. ocr_results 테이블 저장 (raw_text)
 ```
 
----
-
-### 5.2 핵심 로직 상세
-
-### A. OCR 처리 로직
-
-**입력:**
-
-- 처방전 이미지 (JPEG/PNG, 최대 10MB)
-
-**처리 단계:**
-
-```
-1. 이미지 업로드 → 임시 저장 (24시간 후 자동 삭제)
-2. Naver Clova OCR API 호출
-3. 응답 JSON 파싱:
-   {
-     "images": [{
-       "fields": [
-         {"inferText": "이부프로펜정 400mg", "inferConfidence": 0.92}
-       ]
-     }]
-   }
-4. 약품명, 용량, 복용법 추출 (정규식)
-5. 신뢰도 점수 계산 (평균 confidence)
-```
-
-**출력:**
-
-```json
-{
-  "ocr_result_id": 123,
-  "confidence_score": 0.90,
-  "medications": [
-    {
-      "name": "이부프로펜정",
-      "dosage": "400mg",
-      "frequency": "1일 3회",
-      "timing": "식후"
-    }
-  ]
-}
-```
-
-**에러 처리:**
+#### B. OCR 예외 처리
 
 | 조건 | 처리 방법 | 사용자 메시지 |
-| --- | --- | --- |
-| 신뢰도 < 0.7 | 수정 요청 | "인식 정확도가 낮습니다. 확인해주세요" |
-| OCR API 실패 | 3회 재시도 | "인식 실패. 직접 입력해주세요" |
+|------|---------|------------|
+| 신뢰도 ≤ 0.7 | 수정 요청 | "인식 정확도가 낮습니다. 확인해주세요" |
+| OCR API 실패 | 3회 재시도 | "인식 실패, 직접 입력해주세요" |
 | 이미지 용량 초과 | 업로드 거부 | "10MB 이하 이미지만 가능합니다" |
 
----
+### 5.2 AI 분석 로직
 
-### B. 약물 상호작용 분석 로직
+#### B. 약물 상호작용 분석 로직
 
-**입력:**
+**[입력]**
+- OCR 추출 텍스트 (raw_text)
+- 사용자 기저질환 목록 (chronic_conditions)
+- 사용자 기존 복용 약물 (medications)
+- 사용자 알러지 (allergies)
 
-```json
-{
-  "user_id": 1,
-  "chronic_medications": [
-    {"name": "메트포르민", "dosage": "500mg"}
-  ],
-  "new_medications": [
-    {"name": "이부프로펜", "dosage": "400mg"}
-  ]
-}
-```
-
-**LLM 프롬프트:**
+**[처리 단계]**
 
 ```
-System: 너는 약물 상호작용 전문가야.
+1. drug_normalizer.py
+   → GPT-4o-mini (temperature=0)
+   → OCR 오타/약어 보정
+   → 약물명 표준화
+     예: "타이레놀정500" → "아세트아미노펜 500mg"
 
-User:
-환자 정보:
-- 기저질환: 당뇨(제2형)
-- 기존 약: 메트포르민 500mg
-- 신규 약: 이부프로펜 400mg
-
-다음 형식으로 분석:
-{
-  "interactions": [
-    {
-      "drug_a": "약물A",
-      "drug_b": "약물B",
-      "severity": "high/medium/low",
-      "mechanism": "상호작용 원리",
-      "recommendation": "권장사항"
-    }
-  ],
-  "schedules": [
-    {
-      "time": "아침 식후",
-      "medications": ["약물A", "약물B"]
-    }
-  ]
-}
+2. analysis_service.py
+   → GPT-4o-mini (temperature=0)
+   → 표준화된 약물명 + 사용자 컨텍스트 주입
+   → 상호작용 분석, 복약 시간표 생성
 ```
 
-**출력 (LLM 응답):**
+**[출력]**
+- `drug_interactions` 테이블 저장 (medication_a, medication_b, severity)
+- `medication_schedules` 테이블 저장 (schedule_date: JSONB)
+- `guide_results.overall_safety_score` ⚠️ 현재 항상 0으로 하드코딩, 계산 로직 미구현
 
-```json
-{
-  "interactions": [
-    {
-      "drug_a": "메트포르민",
-      "drug_b": "이부프로펜",
-      "severity": "medium",
-      "mechanism": "신장 기능 저하 위험",
-      "recommendation": "복용 중 신장 기능 체크"
-    }
-  ],
-  "schedules": [
-    {
-      "time": "아침 식후",
-      "medications": ["메트포르민", "이부프로펜"],
-      "instructions": "물 한 컵과 함께"
-    }
-  ]
-}
-```
+**성능 검증 결과 (temperature=0 적용):**
 
-**DB 저장:**
+| 실행 횟수 | 위험도 분류 | 상호작용 감지 | 응답 시간 |
+|---------|-----------|------|---------|
+| 1회 | Medium | 감지 | 2.3초 |
+| 2회 | Medium | 감지 | 2.1초 |
+| 3회 | Medium | 감지 | 2.4초 |
 
-- `drug_interactions` 테이블에 저장
-- `medication_schedules` 테이블에 저장
+→ 동일 입력 일관성 100%, 평균 응답 2.27초
 
----
+**프롬프트 버전 비교:**
 
-### C. 재활 가이드 생성 로직
+| 버전 | 프롬프트 전략 | 상호작용 감지율 | 오탐율 |
+|------|-----------|-------------|------|
+| v1 | 단순 나열 | 70% | 15% |
+| v2 | 구조화 + 역할 부여 + JSON 강제 | 92% | 5% |
 
-**전제 조건:**
+#### C. 재활 가이드 생성 로직
 
-- `exercise_library` 테이블에 30개 운동 Seed Data 삽입 완료
+**[입력]**
+- `guide_results` (분석 완료된 약물 정보)
+- 사용자 기저질환 목록
+- `exercise_library` (seed_exercises.sql로 사전 로딩된 운동 DB)
 
-**입력:**
-
-```json
-{
-  "user_id": 1,
-  "chronic_conditions": ["당뇨", "골다공증"],
-  "target_area": "무릎",
-  "surgery_date": "2026-02-01"
-}
-```
-
-**LLM 프롬프트:**
+**[처리]**
 
 ```
-System: 너는 물리치료사야.
-
-User:
-환자: 당뇨, 골다공증
-수술 부위: 무릎
-수술일: 2026-02-01 (2주 경과)
-
-운동 라이브러리:
-[
-  {"id": "knee01", "name": "큐세팅", "난이도": "하", "태그": ["당뇨안전"]},
-  {"id": "knee02", "name": "SLR", "난이도": "중", "금기": "급성통증"}
-]
-
-제약:
-- 당뇨: 상처 회복 느림
-- 골다공증: 낙상 위험 운동 제외
-
-4주 재활 플랜:
-{
-  "plan": {"target_area": "무릎", "duration_weeks": 4},
-  "exercises": [
-    {"week": 1, "exercise_id": "knee01", "sets": 3, "reps": 10}
-  ]
-}
+rehab_service.py
+→ GPT-4o-mini (temperature=0.2)
+  ※ 재활만 0.2 적용: 동일 환자에게 매번 약간 다른 운동 조합 제공
+→ 대상 부위별 운동 처방 생성
+→ exercise_library에서 실제 운동 매핑
 ```
 
-**출력:**
+**[출력]**
+- `rehab_plans` 테이블 저장 (target_area, is_active)
+- `rehab_exercises` 테이블 저장 (plan ↔ exercise 매핑)
 
-```json
-{
-  "plan": {
-    "target_area": "무릎",
-    "duration_weeks": 4,
-    "goal": "무릎 가동범위 120도 회복"
-  },
-  "exercises": [
-    {
-      "week": 1,
-      "exercise_id": "knee01",
-      "sets": 3,
-      "reps": 10,
-      "notes": "당뇨 환자 상처 체크 후 시작"
-    }
-  ]
-}
-```
+#### D. AI 챗봇 로직 (컨텍스트 직접 주입 방식)
 
-**DB 저장:**
-
-1. `rehab_plans` 테이블에 플랜 저장
-2. `rehab_exercises` 테이블에 주차별 운동 저장
-
-**프론트엔드 표시:**
-
-- 운동명: `exercise_library`에서 `exercise_id`로 조회
-- 영상 링크: `exercise_library.video_url`
-- 태그: [당뇨안전] [저강도] 배지 표시
-
----
-
-### D. RAG 챗봇 로직
-
-**전략:** 데이터 양이 적으므로(Text < 100KB), 벡터 DB 없이 프롬프트에 컨텍스트를 직접 주입하여 개발 속도와 정확도 확보.
-
-**입력 (사용자 질문):**
-
-```
-"이부프로펜 먹으면 어지러운데 운동해도 되나요?"
-```
+**전략:** 데이터 양이 적으므로 (Text < 100KB), 벡터 DB 없이 프롬프트에 컨텍스트를 직접 주입하여 개발 속도와 정확도 확보.
 
 **처리:**
-
 ```
 1. 사용자의 분석 리포트 조회 (DB)
 2. 운동 라이브러리 전체 조회 (DB)
 3. 프롬프트에 컨텍스트 직접 주입
+4. GPT-4o-mini SSE 스트리밍 호출 (POST /api/v1/chat/stream)
 ```
 
 **LLM 프롬프트 (System Prompt 구성):**
@@ -1648,145 +476,181 @@ Context:
 [현재 분석 리포트]
 위험도: 주의
 금기사항: 낙상 주의
-
-[운동 라이브러리]
-{전체 운동 데이터 JSON}
-
-User: 이부프로펜 먹으면 어지러운데 운동해도 되나요?
 ```
-
-**출력:**
-
-```
-이부프로펜은 어지러움을 유발할 수 있습니다.
-골다공증 환자분께서는 낙상 위험이 높으므로,
-약 복용 후 30분간은 운동을 피하시고,
-바닥에 앉아서 하는 운동(큐세팅)을 권장합니다.
-
-⚠️ 정확한 진단은 의사와 상담하세요.
-```
-
-**기술적 제약사항:**
-- OpenAI API 호출 시 `response_format={"type": "json_object"}` 필수
-- JSON 파싱 실패 시 최대 3회 재시도
-- 3회 실패 시 `LLM_002` 에러 반환
 
 ---
 
 ## 6. 기능적 요구사항
 
-| ID | 구분 | 카테고리 | 요구사항 명칭 | 상세 내용 | 우선순위 | 검수 기준 |
-| --- | --- | --- | --- | --- | --- | --- |
-| **REQ-001** | 기능 | 인증 | 회원가입 | 이메일, 비밀번호로 회원가입 | High | 중복 이메일 체크 |
-| **REQ-002** | 기능 | 인증 | 로그인 | 이메일+비밀번호 로그인 | High | JWT 토큰 발급 |
-| **REQ-003** | 기능 | 프로필 | 기저질환 입력 | 당뇨/고혈압/골다공증 복수 선택 | High | 최소 1개 선택 |
-| **REQ-004** | 기능 | 프로필 | 기존 약물 입력 | 약품명, 용량, 복용 시간 입력 | High | 약품명 자동완성 |
-| **REQ-005** | 기능 | OCR | 처방전 업로드 | 카메라/갤러리 이미지 선택 | High | JPEG/PNG, 10MB 이하 |
-| **REQ-006** | 기능 | OCR | **OCR 결과 수정** | 인식된 약품명/용량 수정 | **High** | 수정 후 "확인" 버튼 |
-| **REQ-007** | 기능 | OCR | 신뢰도 표시 | OCR 신뢰도 점수 표시 | Medium | 색상 구분 (초록/노랑/빨강) |
-| **REQ-008** | 기능 | 분석 | 약물 상호작용 체크 | 기존약+신규약 상호작용 분석 | **High** | High/Medium 구분 |
-| **REQ-009** | 기능 | 분석 | 복약 시간표 생성 | 시간대별 약물 리스트 | High | 아침/점심/저녁/취침전 |
-| **REQ-010** | 기능 | 재활 | 맞춤 운동 추천 | 기저질환 고려 운동 추천 | **High** | 금기 운동 제외 확인 |
-| **REQ-011** | 기능 | 재활 | 주차별 플랜 | 1~4주차 운동 프로그램 | High | 난이도 점진적 증가 |
-| **REQ-012** | 기능 | 재활 | 영상 링크 제공 | 각 운동마다 유튜브 링크 | High | 링크 클릭 시 새 탭 |
-| **REQ-013** | 기능 | 챗봇 | 질문 응답 | 약물/재활 질문 답변 | High | 3초 이내 응답 |
-| **REQ-014** | 기능 | 챗봇 | 면책 조항 | 모든 응답에 면책 문구 | **High** | "의사 상담" 문구 필수 |
-| **REQ-015** | 기능 | UI | 안전 점수 표시 | 메인 화면 0~100 점수 | Medium | 점수+색상+이모지 |
-| **REQ-016** | 기능 | UI | 로딩 상태 표시 | 분석 중 진행 상황 텍스트 | High | "약물 분석 중..." 표시 |
-| **REQ-017** | 기능 | 이력 | 분석 이력 조회 | 날짜별 과거 분석 리포트 목록 제공 | Medium | 날짜 역순 정렬 |
-| **REQ-018** | 기능 | 시스템 | Seed Data 로딩 | 서버 시작 시 운동/약물 데이터 자동 적재 | **High** | exercises.json 30개 로딩 |
-| **REQ-019** | 기능 | AI 평가 | 피드백 및 로그 수집 | 챗봇 응답에 좋아요/싫어요 버튼, 응답 속도(Latency) DB 저장 | **High** | 모든 응답에 피드백 버튼 |
+### Tier 1 — 필수 기능 (Must Have)
+
+| REQ ID | 기능 | 설명 | 우선순위 |
+|--------|------|------|---------|
+| REQ-001 | 회원가입 | 이메일, 비밀번호(bcrypt), 이름, 생년월일, 성별, 전화번호 | High |
+| REQ-002 | 로그인/로그아웃 | JWT 발급, Zustand persist + sessionStorage 저장 | High |
+| REQ-003 | 회원 정보 수정 | PATCH /api/v1/auth/me | High |
+| REQ-020 | 회원 탈퇴 | DELETE /api/v1/auth/me | High |
+| REQ-021 | 비밀번호 변경 | PATCH /api/v1/auth/me/password | High |
+| REQ-004 | 건강 프로필 입력 | 기저질환, 복용 약물(표준화명 포함), 알러지 4단계 입력 | High |
+| REQ-005 | 처방전 업로드 | 이미지 업로드 → uploads/ 로컬 저장 | High |
+| REQ-006 | OCR 처리 | Naver Clova OCR → 한글 텍스트 추출 | High |
+| REQ-007 | 약물명 표준화 | drug_normalizer.py → GPT-4o-mini로 OCR 오타 보정 | High |
+| REQ-008 | 약물 상호작용 분석 | GPT-4o-mini (temperature=0) → drug_interactions 저장 | High |
+| REQ-009 | 복약 시간표 생성 | medication_schedules.schedule_date (JSONB) 저장 | High |
+| REQ-010 | 분석 상태 폴링 | GET /api/v1/analysis/{id}/status | High |
+| REQ-011 | 재활 가이드 생성 | GPT-4o-mini (temperature=0.2) → rehab_plans, rehab_exercises 저장 | High |
+| REQ-012 | 운동 라이브러리 | seed_exercises.sql로 사전 로딩, exercise_library 테이블 | High |
+| REQ-013 | 운동 완료 기록 | exercise_completions 테이블 저장 | High |
+| REQ-014 | AI 챗봇 | GPT-4o-mini (temperature=0) + seed_knowledge.json 컨텍스트 주입 | High |
+| REQ-015 | SSE 스트리밍 챗봇 | POST /api/v1/chat/stream (별도 엔드포인트) | High |
+| REQ-016 | 챗봇 세션 관리 | chat_sessions, chat_messages 테이블 | High |
+
+### Tier 2 — 중요 기능 (Should Have)
+
+| REQ ID | 기능 | 설명 | 우선순위 |
+|--------|------|------|---------|
+| REQ-017 | 분석 이력 조회 | GET /api/v1/analysis/history | Medium |
+| REQ-018 | 재활 진행률 | GET /api/v1/rehab/plans/{id}/progress | Medium |
+| REQ-019 | 피드백 수집 | feedbacks 테이블 (rating, latency_ms 포함) | Medium |
+| REQ-022 | Mock 모드 | USE_MOCK_OCR / USE_MOCK_ANALYSIS / USE_MOCK_CHAT 환경변수 | Medium |
+
+### Tier 3 — 선택 기능 (Optional)
+
+| REQ ID | 기능 | 설명 | 우선순위 |
+|--------|------|------|---------|
+| REQ-023 | 안전 점수 표시 | overall_safety_score (DB 컬럼 존재, API 응답 포함, 계산 로직 미구현 — 항상 0) | Low |
+| REQ-024 | 복약 리마인더 알림 | notifications 테이블 설계 완료, 발송 로직 미구현 | Low |
+| REQ-025 | pgvector 벡터 검색 | Docker 이미지에 포함, 기능 미구현 (현재 seed_knowledge.json 직접 주입) | Low |
 
 ---
 
-## 7. 비기능적 요구사항
+## 7. 비기능 요구사항
 
-| ID | 구분 | 요구사항 명칭 | 상세 내용 | 검수 기준 |
-| --- | --- | --- | --- | --- |
-| **NF-001** | 성능 | OCR 처리 속도 | 이미지 업로드 후 5초 이내 결과 | 평균 5초 이하 |
-| **NF-002** | 성능 | 분석 완료 시간 | OCR 확정 후 15초 이내 최종 결과 | 평균 15초 이하 |
-| **NF-003** | 성능 | 챗봇 응답 속도 | 질문 후 3초 이내 답변 시작 | 평균 3초 이하 |
-| **NF-004** | UX | 로딩 피드백 | 5초 이상 작업은 진행 상태 표시 | 텍스트 또는 프로그레스 바 |
-| **NF-005** | UX | 접근성 (폰트) | 기본 폰트 크기 16px 이상 | 모든 텍스트 16px 이상 |
-| **NF-006** | UX | 접근성 (터치) | 버튼 최소 높이 44px | 모든 버튼 44px 이상 |
-| **NF-007** | 보안 | 이미지 삭제 | 처방전 원본 24시간 후 자동 삭제 | S3 Lifecycle 정책 |
-| **NF-008** | 보안 | 데이터 암호화 | 민감 정보 AES-256 암호화 | 약물명, 질환명 암호화 |
-| **NF-009** | 가용성 | 에러 핸들링 | OCR 실패 시 재촬영 유도 | 에러 메시지 + 재시도 버튼 |
-| **NF-010** | 가용성 | LLM 실패 대응 | LLM API 실패 시 3회 재시도 | 3회 실패 후 "분석 실패" |
-| **NF-011** | 기술 | JSON 포맷 강제 | LLM 응답 시 JSON 형식 강제 | `response_format={"type": "json_object"}` 사용 |
+| 항목 | 요구사항 |
+|------|---------|
+| **성능** | 일반 API 응답 < 200ms, AI 분석 < 30초 (비동기), 챗봇 첫 청크 < 2초 |
+| **가용성** | Redis 장애 시 Graceful Degradation으로 서비스 중단 없음 |
+| **보안** | JWT 인증, bcrypt 해시, 환경변수 분리, 파일 업로드 제한 |
+| **확장성** | 서비스 레이어 분리, Docker Compose, Mock 모드, pgvector 준비 |
+| **유지보수성** | routers / services / models 완전 분리, 환경변수 기반 설정 |
+| **테스트** | Mock 모드 3종으로 외부 API 없이 전체 기능 테스트 가능 |
 
 ---
 
-## 8. 데이터베이스 스키마 요약
+## 8. 데이터베이스 설계
 
-### 8.1 ERD 관계도
+### 8.1 설계 원칙
+
+- 모든 테이블 PK는 `id` (Integer, Auto Increment) 사용
+  - 예외: `exercise_library.exercise_id` (String PK — Seed Data 식별자)
+- 모든 테이블 `created_at`, `updated_at` 자동 관리
+- 외래키 참조 무결성 보장
+- JSONB 타입: `medication_schedules.schedule_date`
+
+### 8.2 핵심 테이블 목록 (17개)
+
+#### Tier 1 — 필수 (13개)
+
+| 테이블명 | 설명 | 주요 관계 컬럼 |
+|---------|------|-------------|
+| `users` | 사용자 | id, email, password_hash, name, birth_date, gender, phone |
+| `health_profiles` | 건강 프로필 | id, user_id → users |
+| `chronic_conditions` | 만성질환 | id, user_id → users, condition_type |
+| `medications` | 복용 약물 | id, user_id → users, medication_name, **standardized_name**, is_active |
+| `allergies` | 알러지 | id, user_id → users, allergen_name |
+| `documents` | 업로드 문서 | id, user_id → users, document_type, file_path |
+| `ocr_results` | OCR 결과 | id, document_id → documents, raw_text |
+| `guide_results` | AI 분석 결과 | id, user_id → users, ocr_result_id → ocr_results, status, overall_safety_score (항상 0) |
+| `drug_interactions` | 약물 상호작용 | id, guide_result_id → guide_results, medication_a, medication_b, severity |
+| `medication_schedules` | 복약 시간표 | id, guide_result_id → guide_results, user_id → users, schedule_date **(JSONB)** |
+| `exercise_library` | 운동 라이브러리 | exercise_id **(PK, String)**, exercise_name, category, difficulty_level |
+| `rehab_plans` | 재활 계획 | id, user_id → users, guide_result_id → guide_results, target_area, is_active |
+| `rehab_exercises` | 재활 운동 처방 | id, rehab_plan_id → rehab_plans, exercise_id → exercise_library |
+
+#### Tier 2 — 중요 (4개)
+
+| 테이블명 | 설명 | 주요 관계 컬럼 |
+|---------|------|-------------|
+| `exercise_completions` | 운동 완료 기록 | id, user_id → users, rehab_exercise_id → rehab_exercises, rehab_plan_id → rehab_plans, completed_date |
+| `chat_sessions` | 채팅 세션 | id, user_id → users, related_guide_id → guide_results, context_type, session_status |
+| `chat_messages` | 채팅 메시지 | id, session_id → chat_sessions, role, content |
+| `feedbacks` | 피드백 | id, user_id → users, target_type, target_id, rating, **latency_ms** |
+
+#### Tier 3 — Phase 2 예정 (1개)
+
+| 테이블명 | 설명 | 주요 관계 컬럼 |
+|---------|------|-------------|
+| `notifications` | 알림 | id, user_id → users, notification_type, is_read |
+
+### 8.3 ERD 관계도
 
 ```
 users (1) ─────┬──── (N) chronic_conditions
                ├──── (N) medications
                ├──── (N) allergies
+               ├──── (1) health_profiles
                ├──── (N) documents
                ├──── (N) guide_results
-               └──── (N) chat_sessions
+               ├──── (N) chat_sessions
+               ├──── (N) exercise_completions
+               ├──── (N) feedbacks
+               └──── (N) notifications
 
 documents (1) ──── (1) ocr_results
 
+ocr_results (1) ──── (N) guide_results
+
 guide_results (1) ─┬─ (N) drug_interactions
                    ├─ (N) medication_schedules
-                   └─ (1) rehab_plans
+                   ├─ (N) rehab_plans
+                   └─ (N) chat_sessions
 
 rehab_plans (1) ──── (N) rehab_exercises
 
 rehab_exercises (N) ──── (1) exercise_library
-
-chat_sessions (1) ──── (N) chat_messages
+rehab_exercises (1) ──── (N) exercise_completions
 ```
-
-### 8.2 핵심 테이블 (16개)
-
-**Tier 1 (필수 - 11개):**
-
-1. `users` - 사용자
-2. `health_profiles` - 건강 프로필
-3. `chronic_conditions` - 만성질환
-4. `medications` - 복용 약물
-5. `allergies` - 알러지
-6. `documents` - 업로드 문서
-7. `ocr_results` - OCR 결과
-8. `guide_results` - AI 분석 결과
-9. `drug_interactions` - 약물 상호작용
-10. `medication_schedules` - 복약 시간표
-11. `exercise_library` - 운동 라이브러리 (Seed Data)
-
-**Tier 2 (중요 - 4개):**
-12. `rehab_plans` - 재활 계획
-13. `rehab_exercises` - 재활 운동 처방
-14. `chat_sessions` - 채팅 세션
-15. `chat_messages` - 채팅 메시지
-
-**Tier 3 (보너스 - 1개):**
-16. `notifications` - 알림
 
 ---
 
-## 9. 에러 처리 및 예외 상황
+## 9. 에러 처리 전략
 
-### 9.1 OCR 관련 에러
+### 9.1 HTTP 에러 코드 체계
 
-| 에러 코드 | 상황 | 처리 방법 | 사용자 메시지 |
-| --- | --- | --- | --- |
-| `OCR_001` | 이미지 용량 초과 (>10MB) | 업로드 거부 | "이미지 용량은 10MB 이하여야 합니다" |
-| `OCR_002` | 지원하지 않는 파일 형식 | 업로드 거부 | "JPEG 또는 PNG 파일만 가능합니다" |
-| `OCR_003` | OCR API 실패 (3회 재시도 후) | 수동 입력 모드 | "인식 실패. 직접 입력해주세요" |
-| `OCR_004` | 신뢰도 < 0.7 | 수동 확인 요청 | "인식 정확도가 낮습니다. 확인해주세요" |
+| 코드 | 상황 | 예시 |
+|------|------|------|
+| 400 | 잘못된 요청 | 이미지 형식 오류, 필수 필드 누락 |
+| 401 | 인증 실패 | JWT 만료, 토큰 없음 |
+| 403 | 권한 없음 | 다른 사용자 데이터 접근 시도 |
+| 404 | 리소스 없음 | 존재하지 않는 guide_result_id |
+| 409 | 충돌 | 이미 등록된 이메일 |
+| 422 | 유효성 검사 실패 | Pydantic 스키마 불일치 |
+| 500 | 서버 오류 | DB 연결 실패, 예상치 못한 예외 |
 
-### 9.2 LLM 관련 에러
+### 9.2 외부 API 에러 처리
 
-| 에러 코드 | 상황 | 처리 방법 | 사용자 메시지 |
-| --- | --- | --- | --- |
-| `LLM_001` | API 호출 실패 | 3회 재시도 | "분석 중 오류 발생. 다시 시도해주세요" |
-| `LLM_002` | JSON 형식 오류 | 재요청 | "분석 결과 처리 중 오류 발생" |
-| `LLM_003` | 타임아웃 (30초 초과) | 작업 취소 | "분석 시간 초과. 다시 시도해주세요" |
+| 서비스 | 에러 유형 | 처리 방법 |
+|--------|---------|---------|
+| Naver Clova OCR | API 실패 | 3회 재시도 후 실패 시 사용자에게 직접 입력 유도 |
+| Naver Clova OCR | 신뢰도 낮음 | 사용자에게 수정 요청 |
+| OpenAI GPT | API 실패 | 에러 메시지 반환, guide_results.status = "failed" |
+| Redis | 연결 실패 | Graceful Degradation — 캐싱 없이 DB 직접 조회 |
+
+### 9.3 Frontend 에러 처리
+
+```typescript
+// axios 응답 인터셉터
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+```
 
 ---
 
@@ -1795,585 +659,500 @@ chat_sessions (1) ──── (N) chat_messages
 ### 10.1 기능 검수
 
 ```
-□ 회원가입 및 로그인 작동
-□ 기저질환 선택 및 저장
-□ 기존 약물 입력 및 조회
-□ 처방전 이미지 업로드 성공
-□ OCR 결과 정확도 90% 이상 (테스트 이미지 10장)
-□ OCR 결과 수정 기능 작동
-□ 약물 상호작용 분석 정확도 95% 이상 (테스트 20개)
-□ 복약 시간표 자동 생성
-□ 재활 운동 추천 (금기 운동 제외)
-□ 주차별 운동 프로그램 생성
-□ 운동 영상 링크 클릭 시 새 탭
-□ 챗봇 질문 응답 정확도 90% 이상 (테스트 20개)
-□ 모든 응답에 면책 문구 포함
+□ 회원가입 → 로그인 → JWT 발급
+□ 기저질환 / 약물(표준화명 포함) / 알러지 입력 및 저장
+□ 회원 정보 수정 (PATCH /auth/me)
+□ 비밀번호 변경 (PATCH /auth/me/password)
+□ 회원 탈퇴 (DELETE /auth/me)
+□ 처방전 이미지 업로드 → uploads/ 저장 확인
+□ OCR 처리 → ocr_results 저장
+□ drug_normalizer 약물명 표준화 동작 확인
+□ 분석 시작 → BackgroundTasks 비동기 처리
+□ 분석 상태 폴링 (GET /analysis/{id}/status)
+□ 분석 완료 → drug_interactions, medication_schedules 저장
+□ overall_safety_score = 0 반환 확인 (미구현 명시)
+□ 재활 플랜 생성 (temperature=0.2)
+□ 운동 완료 기록 → exercise_completions 저장
+□ 챗봇 일반 응답 (POST /chat)
+□ 챗봇 SSE 스트리밍 (POST /chat/stream 별도 엔드포인트)
+□ 챗봇 세션 종료 (PATCH /chat/sessions/{id}/end)
+□ 피드백 제출 → latency_ms 기록 확인
+□ Redis 캐싱 동작 (재활 플랜 조회)
+□ Redis 연결 실패 시 Graceful Degradation 확인
 ```
 
-### 10.2 성능 검수
+### 10.2 Mock 모드 검수
 
 ```
-□ OCR 처리 시간 5초 이내 (평균)
-□ 분석 완료 시간 15초 이내 (평균)
-□ 챗봇 응답 시간 3초 이내 (평균)
-□ 페이지 로딩 시간 2초 이내
+□ USE_MOCK_OCR=true → Naver Clova 호출 없이 고정 결과 반환
+□ USE_MOCK_ANALYSIS=true → GPT 호출 없이 고정 분석 결과 반환
+□ USE_MOCK_CHAT=true → GPT 호출 없이 고정 챗봇 응답 반환
+□ 프로덕션 배포 시 3개 모두 false 확인
 ```
 
-### 10.3 UI/UX 검수
+### 10.3 인프라 검수
 
 ```
-□ 모든 텍스트 16px 이상
-□ 모든 버튼 44px 이상 높이
-□ 색상 대비 명확 (WCAG AA 기준)
-□ 로딩 시 진행 상황 표시
-□ 에러 메시지 명확하게 표시
-□ 모바일 반응형 디자인
+□ docker-compose up -d → 4개 서비스 모두 healthy
+□ pgvector/pgvector:pg15 이미지 정상 기동
+□ init.sql → 17개 테이블 생성 확인
+□ seed_exercises.sql → exercise_library 데이터 로딩 확인
+□ uploads/ 볼륨 마운트 확인
+□ redis_data 볼륨 마운트 확인
+□ OPENAI_API_KEY 설정 확인
+□ CLOVA_OCR_SECRET / CLOVA_OCR_APIGW_URL 설정 확인
 ```
 
 ---
 
-## 11. 개발 일정
+## 11. 개발 일정 (실제 완료 기준)
 
-| 기간 | 작업 내용 | 산출물 |
-| --- | --- | --- |
-| **Day 1-2** | DB 설계 + Seed Data | ERD, **exercises.json 작성 및 로딩 스크립트 구현** |
-| **Day 3-5** | OCR + LLM 로직 | API 엔드포인트 5개, **비동기 처리 구현** |
-| **Day 6-9** | Frontend 개발 | 핵심 화면 7개 |
-| **Day 10-12** | 챗봇 + 완성도 | **Context Injection 챗봇 구현** |
-| **Day 13-14** | 테스트 + 버그 수정 | 테스트 리포트, **P95 Latency 측정** |
-| **Day 15-16** | 발표 준비 | PPT, 데모 영상 |
+| Phase | 기간 | 완료 항목 |
+|-------|------|---------|
+| **Phase 0** | 1주차 | 프로젝트 구조 설계, Docker Compose, DB 스키마, Seed Data |
+| **Phase 1** | 2~3주차 | 인증, 건강 프로필, OCR, 약물 분석, 재활 가이드 |
+| **Phase 2** | 4주차 | 챗봇 (SSE 스트리밍), 피드백, Mock 모드 |
+| **Phase 3** | 5주차 | 통합 테스트, 문서화, 배포 |
 
 ---
 
 ## 12. 성공 지표 (KPI)
 
-### 12.1 개발 완성도
-
-```
-□ 핵심 기능 100% 구현 (REQ-001 ~ REQ-014)
-□ 페르소나 3명 시나리오 완벽 작동
-□ 버그 0개 (Critical/High 우선순위)
-```
-
-### 12.2 사용자 가치
-
-```
-□ OCR 정확도 90% 이상
-□ 약물 상호작용 정확도 95% 이상
-□ 재활 운동 적합도 100% (금기 운동 0개)
-□ 챗봇 응답 정확도 90% 이상
-```
+| 지표 | 목표 | 측정 방법 |
+|------|------|---------|
+| OCR 인식 정확도 | ≥ 90% | 신뢰도 점수 평균 |
+| 약물 상호작용 감지율 | ≥ 92% | v2 프롬프트 기준 |
+| 약물 상호작용 오탐율 | ≤ 5% | v2 프롬프트 기준 |
+| AI 분석 일관성 | 100% | temperature=0, 동일 입력 3회 반복 |
+| 챗봇 응답 만족도 | ≥ 4.0/5.0 | feedbacks.rating 평균 |
+| API 평균 응답 시간 | < 200ms | feedbacks.latency_ms 평균 |
 
 ---
 
-## 13. 기술 스택 상세 (requirements.txt)
+## 13. 기술 스택 상세
 
-### 13.1 Backend (Python 3.11+)
+### 13.1 Backend (Python 3.11+) — requirements.txt
 
 ```txt
-# requirements.txt
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.12
 
-# FastAPI 프레임워크
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-python-multipart>=0.0.6
+# Database
+sqlalchemy==2.0.35
+psycopg[binary]==3.2.4
+asyncpg==0.30.0
+alembic==1.13.3
 
-# 데이터베이스
-sqlalchemy>=2.0.25
-alembic>=1.13.1
-psycopg2-binary>=2.9.9
-asyncpg>=0.29.0
+# Redis
+redis==5.1.1
 
-# 인증
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-python-dotenv>=1.0.0
-pydantic-settings>=2.1.0
+# Settings
+pydantic-settings==2.5.2
+pydantic[email]==2.12.5
 
-# AI/ML
-openai>=1.10.0
-langchain>=0.1.0
-langchain-openai>=0.0.2
-pinecone-client>=3.0.0
+# AI / LLM
+openai==1.51.0
 
-# 비동기 작업
-celery>=5.3.4
-redis>=5.0.1
+# Utils
+python-dotenv==1.0.1
+python-jose[cryptography]==3.3.0
+bcrypt==4.0.1
+httpx==0.27.2
 
-# 이미지 처리
-pillow>=10.2.0
-boto3>=1.34.34  # AWS S3
-
-# HTTP 클라이언트
-requests>=2.31.0
-httpx>=0.26.0
-
-# 유틸리티
-pydantic>=2.5.3
-python-dateutil>=2.8.2
-pytz>=2023.3
+greenlet>=3.0.0
+email-validator>=2.0.0
 ```
 
-### 13.2 Frontend (Node.js 18+)
+### 13.2 Frontend (Node 20+) — package.json
 
+**dependencies:**
 ```json
 {
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.0",
-    "axios": "^1.6.5",
-    "zustand": "^4.4.7",
-    "tailwindcss": "^3.4.1",
-    "@radix-ui/react-dialog": "^1.0.5",
-    "@radix-ui/react-toast": "^1.1.5",
-    "lucide-react": "^0.309.0",
-    "date-fns": "^3.0.6"
-  },
-  "devDependencies": {
-    "@types/react": "^18.2.48",
-    "@types/react-dom": "^18.2.18",
-    "@vitejs/plugin-react": "^4.2.1",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.11",
-    "eslint": "^8.56.0",
-    "prettier": "^3.1.1"
-  }
+  "@tanstack/react-query": "^5.90.21",
+  "axios": "^1.13.5",
+  "react": "^19.2.0",
+  "react-dom": "^19.2.0",
+  "react-router-dom": "^7.13.1",
+  "zustand": "^5.0.11"
+}
+```
+
+**devDependencies:**
+```json
+{
+  "@eslint/js": "^9.39.1",
+  "@types/node": "^24.10.15",
+  "@types/react": "^19.2.7",
+  "@types/react-dom": "^19.2.3",
+  "@vitejs/plugin-react": "^5.1.1",
+  "autoprefixer": "^10.4.27",
+  "eslint": "^9.39.1",
+  "eslint-plugin-react-hooks": "^7.0.1",
+  "eslint-plugin-react-refresh": "^0.4.24",
+  "globals": "^16.5.0",
+  "postcss": "^8.5.6",
+  "tailwindcss": "^3.4.19",
+  "typescript": "~5.9.3",
+  "typescript-eslint": "^8.48.0",
+  "vite": "^7.3.1"
 }
 ```
 
 ---
 
-## 14. 환경 변수 예시 (.env)
+## 14. 환경 변수 (Environment Variables)
+
+> ⚠️ 값은 절대 Git에 커밋하지 않는다. `.env` 파일은 `.gitignore`에 반드시 포함.
+
+### 14.1 Backend 환경 변수 (config.py 기준)
 
 ```bash
-# .env (절대 Git에 커밋하지 말 것!)
+# 앱 설정
+APP_ENV=development          # development | production
+SECRET_KEY=...               # JWT 서명 키 (최소 32자 랜덤 문자열)
+DEBUG=true
 
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/chroniccare
+# PostgreSQL
+POSTGRES_USER=user
+POSTGRES_PASSWORD=password
+POSTGRES_DB=chroniccare
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
 
 # Redis
-REDIS_URL=redis://localhost:6379/0
-
-# JWT
-JWT_SECRET_KEY=your-super-secret-key-change-this-in-production
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_URL=redis://redis:6379/0
 
 # OpenAI
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxx
+OPENAI_API_KEY=sk-...
 
 # Naver Clova OCR
-NAVER_OCR_API_URL=https://naveropenapi.apigw.ntruss.com/vision/v1/ocr
-NAVER_OCR_SECRET=your-naver-ocr-secret-key
+CLOVA_OCR_SECRET=...
+CLOVA_OCR_APIGW_URL=https://...
 
-# Pinecone
-PINECONE_API_KEY=your-pinecone-api-key
-PINECONE_INDEX_NAME=chroniccare-rag
+# Mock 모드 (개발/테스트 시 외부 API 호출 없이 동작)
+USE_MOCK_OCR=false
+USE_MOCK_ANALYSIS=false
+USE_MOCK_CHAT=false
+```
 
-# AWS S3
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_S3_BUCKET_NAME=chroniccare-prescriptions
-AWS_REGION=ap-northeast-2
+### 14.2 Frontend 환경 변수 (docker-compose.yml 기준)
 
-# Frontend URL (CORS)
-FRONTEND_URL=https://your-frontend-domain.com
-
-# Environment
-ENVIRONMENT=development  # development | production
-
-# Sentry (선택 사항)
-SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
-
-# Celery
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
+```bash
+VITE_API_URL=http://localhost:8000/api/v1
 ```
 
 ---
 
-## 15. 첨부 자료
+## 15. 프로젝트 디렉토리 구조
 
-### 15.1 필수 준비 파일
-
-```
-1. ERD 다이어그램 (dbdiagram.io)
-2. seeds/exercises.json (30개 운동 데이터)
-3. seeds/drug_interactions.json (30개 약물 상호작용)
-4. seeds/seed_loader.py (자동 로딩 스크립트)
-5. 페르소나 상세 시나리오 (3개)
-6. 프롬프트 템플릿 (복약 + 재활 + 챗봇)
-7. API 명세서 (Swagger)
-8. 데모 시나리오 스크립트
-9. 발표 PPT 템플릿
-```
-
----
-
-## 16. 외부 API 사용 계획 (조교님 보고용)
-
-### 16.1 사용할 외부 API 목록
-
-| API | 용도 | 비용 | 월 예상 사용량 | 승인 필요 여부 |
-|-----|------|------|---------------|--------------|
-| **Naver Clova OCR** | 처방전 이미지 인식 | 월 1,000건 무료 | 200건 | ✅ API 키 필요 |
-| **OpenAI GPT-4 Turbo** | 약물 분석, 재활 가이드, 챗봇 | 유료 ($0.01/1K tokens) | $5~10 | ✅ API 키 필요 |
-| **Pinecone** | RAG 벡터 검색 | 무료 티어 (1M vectors) | 10K vectors | ✅ API 키 필요 |
-| **AWS S3** | 처방전 이미지 저장 | 무료 티어 (5GB) | 1GB | ✅ AWS 계정 필요 |
-
-### 16.2 API 키 발급 상태
+### 15.1 전체 구조
 
 ```
-□ Naver Clova OCR - 발급 필요 (https://www.ncloud.com/product/aiService/ocr)
-□ OpenAI API - 발급 필요 (https://platform.openai.com/api-keys)
-□ Pinecone - 발급 필요 (https://www.pinecone.io/)
-□ AWS S3 - 발급 필요 (https://aws.amazon.com/s3/)
-```
-
-### 16.3 예상 비용 (16일 개발 기간)
-
-| 항목 | 예상 비용 | 비고 |
-|------|----------|------|
-| OpenAI GPT-4 | $10 | 테스트 + 데모용 |
-| Naver OCR | 무료 | 월 1,000건 무료 |
-| Pinecone | 무료 | 무료 티어 |
-| AWS S3 | 무료 | 무료 티어 |
-| **총계** | **$10** | 개발 기간 총 비용 |
-
----
-
-## 17. MVP 범위 정의 (조교님 보고용)
-
-### 17.1 Phase 1 (필수, Day 1-9): 데모 가능한 최소 기능
-
-**목표:** "처방전 업로드 → 약물 분석 결과 확인" 플로우 완성
-
-```
-✅ 회원가입/로그인 (JWT)
-✅ 기저질환 입력 (당뇨/고혈압/골다공증)
-✅ 기존 약물 입력
-✅ 처방전 업로드 (OCR)
-✅ OCR 결과 수정 화면
-✅ 약물 상호작용 분석 결과 화면
-✅ 복약 시간표 화면
-✅ 재활 운동 추천 화면
-```
-
-**검수 기준:**
-- 페르소나 1명(김영희) 시나리오 완벽 작동
-- OCR 정확도 80% 이상
-- 분석 완료 시간 20초 이내
-
----
-
-### 17.2 Phase 2 (중요, Day 10-12): 차별화 기능
-
-**목표:** 챗봇 추가로 사용자 경험 향상
-
-```
-✅ 챗봇 세션 생성
-✅ 컨텍스트 인식 (사용자가 보는 화면 기반 답변)
-✅ RAG 검색 (Pinecone)
-✅ 면책 문구 자동 추가
-```
-
-**검수 기준:**
-- 챗봇 응답 정확도 85% 이상
-- 응답 시간 5초 이내
-
----
-
-### 17.3 Phase 3 (선택, Day 13-14): 완성도 향상
-
-**목표:** 시간 여유 시 추가 기능
-
-```
-⚪ 피드백 시스템 (좋아요/싫어요)
-⚪ 운동 완료 기록
-⚪ 안전 점수 표시
-⚪ UI 개선 (애니메이션, 로딩 상태)
-```
-
-**검수 기준:**
-- Phase 1, 2가 완벽히 작동하면 추가
-- Phase 1, 2에 버그가 있으면 Phase 3 포기
-
----
-
-## 18. 기술 난이도 평가 (조교님 보고용)
-
-### 18.1 경험 있는 기술 (빠르게 개발 가능)
-
-| 기술 | 경험 수준 | 예상 소요 시간 |
-|------|----------|--------------|
-| FastAPI | ⭐⭐⭐⭐ (프로젝트 2회) | 2일 |
-| PostgreSQL | ⭐⭐⭐⭐ (SQL 쿼리 작성 가능) | 1일 |
-| React + TypeScript | ⭐⭐⭐⭐ (프로젝트 3회) | 4일 |
-| JWT 인증 | ⭐⭐⭐ (구현 경험 1회) | 1일 |
-
----
-
-### 18.2 처음 사용하는 기술 (러닝 커브 필요)
-
-| 기술 | 학습 계획 | 예상 소요 시간 | 대안 |
-|------|----------|--------------|------|
-| **Celery** | 공식 문서 + 튜토리얼 | 1일 | FastAPI BackgroundTasks |
-| **Pinecone** | 퀵스타트 가이드 | 0.5일 | 프롬프트 직접 주입 (현재 전략) |
-| **LangChain** | 예제 코드 참고 | 1일 | OpenAI API 직접 호출 |
-| **Naver OCR** | API 문서 | 0.5일 | Google Vision API |
-
----
-
-### 18.3 확인 필요한 사항
-
-```
-❓ Naver Clova OCR - 부트캠프에서 API 키 지원 가능한가요?
-❓ OpenAI API - 부트캠프 계정 사용 가능한가요? (비용 $10)
-❓ AWS S3 - 부트캠프 계정 사용 가능한가요?
-❓ Pinecone - 개인 계정 사용해도 되나요? (무료 티어)
+AI_Health_final/
+├── chroniccare-backend/
+│   ├── app/
+│   │   ├── core/
+│   │   │   ├── config.py          # 환경 변수 설정
+│   │   │   ├── database.py        # SQLAlchemy 비동기 엔진
+│   │   │   ├── redis_client.py    # Redis 캐싱 (Graceful Degradation)
+│   │   │   └── security.py        # JWT, bcrypt
+│   │   ├── models/
+│   │   │   ├── user.py
+│   │   │   ├── document.py
+│   │   │   ├── analysis.py
+│   │   │   ├── chat.py
+│   │   │   └── rehab.py
+│   │   ├── routers/
+│   │   │   ├── auth.py
+│   │   │   ├── profile.py
+│   │   │   ├── documents.py
+│   │   │   ├── analysis.py
+│   │   │   ├── rehab.py
+│   │   │   ├── chat.py
+│   │   │   └── feedback.py
+│   │   ├── services/
+│   │   │   ├── analysis_service.py   # GPT-4o-mini, temperature=0
+│   │   │   ├── chat_service.py       # GPT-4o-mini, stream=True, temperature=0
+│   │   │   ├── ocr_service.py        # Naver Clova OCR
+│   │   │   ├── drug_normalizer.py    # GPT-4o-mini, temperature=0 (약물명 표준화)
+│   │   │   ├── profile_service.py    # DB CRUD만 (외부 API 없음)
+│   │   │   └── rehab_service.py      # GPT-4o-mini, temperature=0.2
+│   │   ├── error_codes.py
+│   │   ├── main.py
+│   │   └── __init__.py
+│   ├── uploads/                      # 처방전 이미지 로컬 저장 (24h 후 삭제)
+│   ├── requirements.txt
+│   └── Dockerfile
+├── chroniccare-frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   │   ├── client.ts            # axios 인스턴스 + JWT 인터셉터
+│   │   │   └── profileApi.ts
+│   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   │   ├── AppLayout.tsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   └── TopNav.tsx
+│   │   │   ├── profile/
+│   │   │   │   ├── Step1_BasicInfo.tsx
+│   │   │   │   ├── Step2_Conditions.tsx
+│   │   │   │   ├── Step3_Medications.tsx
+│   │   │   │   ├── Step4_Allergies.tsx
+│   │   │   │   └── StepIndicator.tsx
+│   │   │   └── ui/                  # (비어있음)
+│   │   ├── hooks/
+│   │   │   ├── useAnalysis.ts
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useProfile.ts
+│   │   │   └── useRehab.ts
+│   │   ├── pages/
+│   │   │   ├── Landing.tsx
+│   │   │   ├── Login.tsx
+│   │   │   ├── Register.tsx
+│   │   │   ├── profileSetup.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── PrescriptionAnalysis.tsx
+│   │   │   ├── AnalysisResult.tsx
+│   │   │   ├── Rehabilitation.tsx
+│   │   │   ├── Chat.tsx
+│   │   │   ├── MyPage.tsx
+│   │   │   └── HealthProfile.tsx
+│   │   ├── store/
+│   │   │   └── authStore.ts         # Zustand + persist (sessionStorage)
+│   │   ├── types/
+│   │   │   └── index.ts
+│   │   ├── utils/                   # (비어있음)
+│   │   ├── App.tsx
+│   │   ├── App.css
+│   │   ├── main.tsx
+│   │   └── index.css
+│   ├── package.json
+│   └── Dockerfile
+├── data/
+│   ├── init.sql                     # DB 초기화 스크립트
+│   └── seed_exercises.sql           # 운동 라이브러리 Seed Data
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
-## 19. 리스크 관리 계획
+## 16. 외부 서비스 및 API
 
-### 19.1 기술적 리스크
+### 16.1 외부 API 목록
 
-| 리스크 | 발생 확률 | 영향도 | 대응 방안 |
-|--------|----------|--------|----------|
-| **OCR 정확도 낮음** | 중 | 높음 | 수동 수정 기능 강화 |
-| **LLM 응답 불안정** | 중 | 높음 | 3회 재시도 + 에러 처리 |
-| **Celery 설정 실패** | 중 | 중 | FastAPI BackgroundTasks로 대체 |
-| **Pinecone 연동 실패** | 낮 | 낮 | 프롬프트 직접 주입으로 대체 |
-| **AWS S3 비용 초과** | 낮 | 중 | 로컬 파일 시스템으로 대체 |
+| 서비스 | 용도 | 과금 | 비고 |
+|--------|------|------|------|
+| **OpenAI GPT-4o-mini** | 약물 분석, 약물명 표준화, 재활 가이드 생성, 챗봇 | 유료 (종량제) | temperature=0 (재활만 0.2) |
+| **Naver Clova OCR** | 처방전 한글 텍스트 인식 | 유료 (종량제) | Mock 모드 지원 |
 
----
+> ℹ️ AWS S3, Pinecone, LangChain, Celery는 **미사용** (코드에 없음)
 
-### 19.2 일정 리스크
+### 16.2 Mock 모드 (개발/테스트 전용)
 
-| 리스크 | 발생 확률 | 영향도 | 대응 방안 |
-|--------|----------|--------|----------|
-| **Day 1-9 지연** | 중 | 높음 | Phase 3 포기 |
-| **Day 10-12 지연** | 중 | 중 | 챗봇 간소화 (RAG 제외) |
-| **버그 수정 시간 부족** | 높음 | 높음 | Day 13-14를 버그 수정에 집중 |
+외부 API 비용 없이 개발 및 테스트할 수 있도록 Mock 구현체가 존재한다.
 
----
-
-## 20. 데모 시나리오 (발표용)
-
-### 20.1 시나리오 1: 김영희 (수술 케이스)
-
-```
-[1분] 온보딩
-- 회원가입 (이메일: younghee@example.com)
-- 기저질환 선택: 당뇨, 골다공증
-- 기존 약물 입력: 메트포르민, 알렌드로네이트
-
-[2분] 처방전 분석
-- 처방전 이미지 업로드 (손목 골절 수술 후)
-- OCR 결과 확인: 트라마돌, 세파클러, 란소프라졸
-- "분석 시작" 버튼 클릭
-
-[2분] 결과 확인
-- 약물 상호작용 경고: "트라마돌 + 메트포르민 → 저혈당 위험"
-- 복약 시간표: 아침 식후 (메트포르민, 세파클러), 저녁 식후 (트라마돌)
-- 재활 운동: 손목 ROM 운동 (1주차), 당뇨 환자 주의사항
-
-[1분] 챗봇 질문
-- "트라마돌 먹으면 어지러운데 운동해도 되나요?"
-- 챗봇 답변: "약 복용 후 30분간 운동 피하고, 바닥에 앉아서 하는 운동 권장"
-```
-
-**총 소요 시간:** 6분
+| 환경 변수 | 대상 | 동작 |
+|----------|------|------|
+| `USE_MOCK_OCR=true` | Naver Clova OCR | 고정 OCR 결과 반환 |
+| `USE_MOCK_ANALYSIS=true` | GPT-4o-mini (분석) | 고정 분석 결과 반환 |
+| `USE_MOCK_CHAT=true` | GPT-4o-mini (챗봇) | 고정 챗봇 응답 반환 |
 
 ---
 
-### 20.2 시나리오 2: 박철수 (시술 케이스)
+## 17. 데이터베이스 스키마 상세 (실제 구현 기준)
+
+### 17.1 전체 테이블 목록 (17개)
+
+**Tier 1 — 필수 (13개):**
+
+| 테이블명 | 설명 | 주요 관계 컬럼 |
+|---------|------|-------------|
+| `users` | 사용자 | id, email, password_hash, name, birth_date, gender, phone |
+| `health_profiles` | 건강 프로필 | id, user_id → users |
+| `chronic_conditions` | 만성질환 | id, user_id → users, condition_type |
+| `medications` | 복용 약물 | id, user_id → users, medication_name, standardized_name, is_active |
+| `allergies` | 알러지 | id, user_id → users, allergen_name |
+| `documents` | 업로드 문서 | id, user_id → users, document_type, file_path |
+| `ocr_results` | OCR 결과 | id, document_id → documents, raw_text |
+| `guide_results` | AI 분석 결과 | id, user_id → users, ocr_result_id → ocr_results, status, **overall_safety_score** (항상 0, 미구현) |
+| `drug_interactions` | 약물 상호작용 | id, guide_result_id → guide_results, medication_a, medication_b, severity |
+| `medication_schedules` | 복약 시간표 | id, guide_result_id → guide_results, user_id → users, schedule_date (JSONB) |
+| `exercise_library` | 운동 라이브러리 (Seed) | exercise_id (PK, String), exercise_name, category, difficulty_level |
+| `rehab_plans` | 재활 계획 | id, user_id → users, guide_result_id → guide_results, target_area, is_active |
+| `rehab_exercises` | 재활 운동 처방 | id, rehab_plan_id → rehab_plans, exercise_id → exercise_library |
+
+**Tier 2 — 중요 (4개):**
+
+| 테이블명 | 설명 | 주요 관계 컬럼 |
+|---------|------|-------------|
+| `exercise_completions` | 운동 완료 기록 | id, user_id → users, rehab_exercise_id → rehab_exercises, rehab_plan_id → rehab_plans, completed_date |
+| `chat_sessions` | 채팅 세션 | id, user_id → users, related_guide_id → guide_results, context_type, session_status |
+| `chat_messages` | 채팅 메시지 | id, session_id → chat_sessions, role, content |
+| `feedbacks` | 피드백 | id, user_id → users, target_type, target_id, rating, **latency_ms** |
+
+**Tier 3 — 설계 완료, Phase 2 구현 예정 (1개):**
+
+| 테이블명 | 설명 | 주요 관계 컬럼 |
+|---------|------|-------------|
+| `notifications` | 알림 | id, user_id → users, notification_type, is_read |
+
+### 17.2 ERD 관계도
 
 ```
-[1분] 온보딩
-- 로그인 (이미 가입된 계정)
-- 기저질환: 고혈압, 고지혈증
-- 기존 약물: 암로디핀, 아토르바스타틴
+users (1) ─────┬──── (N) chronic_conditions
+               ├──── (N) medications
+               ├──── (N) allergies
+               ├──── (1) health_profiles
+               ├──── (N) documents
+               ├──── (N) guide_results
+               ├──── (N) chat_sessions
+               ├──── (N) exercise_completions
+               ├──── (N) feedbacks
+               └──── (N) notifications
 
-[2분] 처방전 분석
-- 처방전 이미지 업로드 (신경차단술 후)
-- OCR 결과 확인: 이부프로펜, 에페리손, 가바펜틴
-- "분석 시작" 버튼 클릭
+documents (1) ──── (1) ocr_results
 
-[2분] 결과 확인
-- 약물 상호작용 경고: "이부프로펜 + 암로디핀 → 혈압 상승 위험"
-- 복약 시간표: 아침 식후 (암로디핀, 이부프로펜), 저녁 식후 (가바펜틴)
-- 재활 운동: 허리 스트레칭 (1주차), 고혈압 환자 주의사항
+ocr_results (1) ──── (N) guide_results
 
-[1분] 챗봇 질문
-- "근이완제 먹으면 졸린데 운전해도 되나요?"
-- 챗봇 답변: "에페리손은 졸음 유발 가능. 복용 후 4시간 운전 금지"
-```
+guide_results (1) ─┬─ (N) drug_interactions
+                   ├─ (N) medication_schedules
+                   ├─ (N) rehab_plans
+                   └─ (N) chat_sessions
 
-**총 소요 시간:** 6분
+rehab_plans (1) ──── (N) rehab_exercises
 
----
-
-## 21. 발표 PPT 구성안
-
-### 슬라이드 1: 표지
-```
-ChronicCare Ortho
-만성질환자 맞춤형 통합 복약·재활 관리 시스템
-
-팀명: [팀명]
-팀원: [이름1, 이름2, ...]
-```
-
-### 슬라이드 2: 문제 정의
-```
-❌ 현재 문제점
-- 만성질환 환자 + 정형외과 치료 = 약물 상호작용 위험 ↑
-- 3분 진료로는 충분한 설명 불가
-- 퇴원 후 2주간 관리 공백
-
-📊 통계
-- 만성질환 환자 65세 이상 80%
-- 약물 상호작용 사고 연 1만 건
-```
-
-### 슬라이드 3: 솔루션
-```
-✅ ChronicCare Ortho의 해결책
-1. OCR 기반 자동 약물 분석
-2. 기저질환 고려 재활 가이드
-3. 24시간 챗봇 상담
-```
-
-### 슬라이드 4: 핵심 기능
-```
-🔍 OCR 처방전 인식 (Naver Clova)
-💊 약물 상호작용 분석 (GPT-4)
-🏃 맞춤 재활 운동 추천
-💬 RAG 챗봇 (컨텍스트 인식)
-```
-
-### 슬라이드 5: 기술 스택
-```
-Frontend: React + TypeScript
-Backend: FastAPI + PostgreSQL
-AI: GPT-4 + LangChain + Pinecone
-Infra: Docker
-```
-
-### 슬라이드 6: 시스템 아키텍처
-```
-[4.1의 다이어그램 삽입]
-```
-
-### 슬라이드 7: 데모 (동영상)
-```
-[6분 데모 영상 재생]
-```
-
-### 슬라이드 8: 차별화 포인트
-```
-✨ 우리만의 강점
-1. 컨텍스트 인식 챗봇 (화면 기반 답변)
-2. 기저질환 고려 운동 추천
-3. OCR 수정 기능 (정확도 향상)
-```
-
-### 슬라이드 9: 향후 계획
-```
-🚀 Phase 1 (3개월)
-- 실제 병원 파일럿 테스트
-- 의료진 피드백 수집
-
-🚀 Phase 2 (6개월)
-- EMR 연동
-- 웨어러블 기기 연동
-```
-
-### 슬라이드 10: Q&A
-```
-감사합니다!
-
-GitHub: [레포지토리 링크]
-Demo: [배포 URL]
+rehab_exercises (N) ──── (1) exercise_library
+rehab_exercises (1) ──── (N) exercise_completions
 ```
 
 ---
 
-## 22. 최종 체크리스트 (제출 전)
+## 18. 확장성 설계
 
-### 22.1 코드 체크리스트
+### 18.1 현재 적용된 확장 구조
 
-```
-□ requirements.txt 모든 패키지 버전 명시
-□ .env.example 파일 작성 (실제 키 제외)
-□ README.md 작성 (설치 방법, 실행 방법)
-□ Docker Compose 정상 작동 확인
-□ Celery 볼륨 마운트 확인
-□ CORS 설정 확인 (localhost + 127.0.0.1)
-□ 모든 API 엔드포인트 Swagger 문서화
-□ 에러 처리 코드 작성
-□ 로깅 설정 완료
-```
+- **OCR 서비스 추상화:** `USE_MOCK_OCR` 환경변수 변경만으로 OCR 엔진 교체 가능
+  (현재: Naver Clova OCR → 향후: Google Vision, AWS Textract)
+- **서비스 레이어 분리:** `routers ↔ services ↔ models` 완전 분리
+  → 비즈니스 로직 변경 시 라우터 수정 불필요
+- **Docker Compose 구조:** 서비스별 독립 컨테이너
+  → 향후 Kubernetes 마이그레이션 용이
+- **Redis Graceful Degradation:** Redis 연결 실패 시 캐싱 없이 정상 동작
+  → 인프라 장애에도 서비스 중단 없음
+- **notifications 테이블:** 설계 완료, Phase 2 구현 예정
 
-### 22.2 문서 체크리스트
+### 18.2 Phase 2/3 확장 계획
 
-```
-□ 00_unified_RDD.md (이 문서)
-□ 01_Requirements.md (기능 명세)
-□ 02_Database_Schema.md (ERD)
-□ 03_API_Specification.md (API 문서)
-□ 04_Deployment_Guide.md (배포 가이드)
-□ 05_Test_Scenarios.md (테스트 시나리오)
-□ seeds/exercises.json (30개 운동)
-□ seeds/drug_interactions.json (30개 상호작용)
-```
+| 기능 | 현재 | 확장 방향 |
+|------|------|---------|
+| 이미지 저장 | 로컬 `uploads/` | AWS S3 (환경변수만 변경) |
+| 알림 서비스 | 테이블만 존재 | 복약 리마인더 푸시 알림 |
+| 안전 점수 | DB 컬럼 존재, 항상 0 | LLM 프롬프트에 계산 로직 추가 |
+| 모바일 앱 | 웹만 | REST API 구조로 클라이언트 독립 확장 |
+| 벡터 검색 | seed_knowledge.json 직접 주입 | 데이터 증가 시 pgvector 활용 (이미 Docker에 설치됨) |
 
-### 22.3 테스트 체크리스트
+---
 
-```
-□ 페르소나 3명 시나리오 테스트 완료
-□ OCR 정확도 90% 이상 (10장 테스트)
-□ 약물 분석 정확도 95% 이상 (20개 테스트)
-□ 챗봇 응답 정확도 90% 이상 (20개 질문)
-□ 성능 테스트 (OCR 5초, 분석 15초, 챗봇 3초)
-□ 모바일 반응형 테스트
-□ 브라우저 호환성 테스트 (Chrome, Safari)
-```
+## 19. 피드백 활용 구조
 
-### 22.4 발표 준비 체크리스트
+### 19.1 수집 → 저장 → 분석 → 개선 사이클
 
 ```
-□ PPT 작성 완료 (10장)
-□ 데모 영상 제작 (6분)
-□ 시연 환경 테스트 (인터넷 연결, 화면 공유)
-□ 백업 계획 (영상 재생, 스크린샷)
-□ Q&A 예상 질문 준비
+1. 사용자 피드백 수집
+   - 챗봇 응답마다 좋아요/싫어요 버튼
+   - rating (1~5점)
+   - 응답 속도 자동 측정 (latency_ms)
+
+2. feedbacks 테이블에 저장
+   - target_type: "chat_message" | "analysis" | "rehab_plan"
+   - target_id: 해당 콘텐츠 ID
+   - rating: 1~5
+   - latency_ms: 응답 속도 (ms)
+
+3. 부정 피드백 패턴 분석
+   예: rating <= 2인 응답의 공통 패턴 파악
+   → "재활 운동이 너무 어렵다" 피드백 다수
+   → 난이도 조절 프롬프트 파라미터 추가
+
+4. 개선된 프롬프트로 다음 분석에 적용
+```
+
+### 19.2 API 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/api/v1/feedback` | 피드백 제출 |
+| GET | `/api/v1/feedback` | 피드백 목록 조회 |
+| GET | `/api/v1/feedback/{feedback_id}` | 피드백 상세 조회 |
+| DELETE | `/api/v1/feedback/{feedback_id}` | 피드백 삭제 |
+
+---
+
+## 20. 배포 후 확인 체크리스트
+
+### 20.1 서비스 기동 확인
+
+```bash
+# 전체 서비스 시작
+docker-compose up -d
+
+# 서비스 상태 확인 (4개 모두 healthy)
+docker-compose ps
+
+# 로그 확인
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# DB 초기화 확인 (init.sql + seed_exercises.sql 자동 실행)
+docker-compose logs postgres
+```
+
+### 20.2 배포 후 확인 항목
+
+```
+□ postgres 컨테이너 healthy 상태
+□ redis 컨테이너 healthy 상태
+□ backend 컨테이너 healthy 상태 (GET /health → 200)
+□ frontend 컨테이너 정상 기동 (http://localhost:5173)
+□ DB 테이블 17개 생성 확인
+□ exercise_library Seed Data 로딩 확인 (seed_exercises.sql)
+□ uploads/ 폴더 마운트 확인
+□ Mock 모드 환경변수 확인 (프로덕션 시 모두 false)
+□ OPENAI_API_KEY 설정 확인
+□ CLOVA_OCR_SECRET 설정 확인
+```
+
+### 20.3 기능 동작 확인
+
+```
+□ 회원가입 → 로그인 → JWT 발급
+□ 기저질환/약물/알러지 입력 및 저장
+□ 처방전 이미지 업로드 → uploads/ 저장 확인
+□ OCR 처리 → 결과 반환
+□ 분석 시작 → BackgroundTasks 비동기 처리
+□ 분석 상태 폴링 (GET /analysis/{id}/status)
+□ 분석 완료 → 결과 페이지 이동
+□ 챗봇 SSE 스트리밍 동작 (POST /chat/stream)
+□ 피드백 제출 (POST /feedback)
+□ Redis 캐싱 동작 (재활 플랜 조회 속도 비교)
 ```
 
 ---
 
-## 24. 문서 끝
+## 21. 알려진 미구현 사항 (Known Limitations)
 
-**이 문서는 ChronicCare Ortho 프로젝트의 모든 요구사항을 정의합니다.**
-
-**문서 작성자:** [이름]
-
-**최종 수정일:** 2026-02-26
-
-**문서 버전:** v2.0 (완전판)
+| 항목 | 상태 | 상세 |
+|------|------|------|
+| **안전 점수 계산** | ❌ 미구현 | `overall_safety_score` DB 컬럼 존재, API 응답에 포함되나 항상 0으로 하드코딩. LLM 프롬프트에 계산 지시 없음 |
+| **복약 리마인더 알림** | ❌ 미구현 | `notifications` 테이블 설계 완료, 실제 알림 발송 로직 없음 |
+| **pgvector 활용** | ❌ 미구현 | Docker에 `pgvector/pgvector:pg15` 이미지 사용 중이나 벡터 검색 기능 미구현. 현재는 `seed_knowledge.json` 직접 주입 방식 사용 |
+| **이미지 자동 삭제** | ⚠️ 미확인 | `uploads/` 폴더 24시간 후 자동 삭제 스케줄러 구현 여부 미확인 |
+| **프론트 폴링 로직** | ⚠️ 미확인 | `useAnalysis.ts` 존재하나 실제 폴링 간격 미확인 |
+```
 
 ---
-
-- 원래 내용 100% 보존
-- 시스템 아키텍처 추가
-- requirements.txt 추가
-- Docker Compose 수정 (Celery 볼륨, CORS)
-- 조교님 보고용 섹션 추가
-- 데모 시나리오 추가
-- 발표 PPT 구성안 추가
-- 최종 체크리스트 추가
-
-**총 24개 섹션, 약 15,000 단어!** 📄✨
