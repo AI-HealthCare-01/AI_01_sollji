@@ -2,6 +2,7 @@
 import json
 import os
 import asyncio
+from pathlib import Path
 from typing import AsyncGenerator
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,7 @@ def get_openai_client() -> AsyncOpenAI:
 # ─────────────────────────────────────────
 # seed_knowledge.json 로드 (1회)
 # ─────────────────────────────────────────
-KNOWLEDGE_PATH = os.path.join(os.path.dirname(__file__), "../data/seed_knowledge.json")
+KNOWLEDGE_PATH = Path(__file__).resolve().parents[2] / "data" / "seed_knowledge.json"
 
 def load_knowledge() -> str:
     try:
@@ -103,8 +104,8 @@ async def load_guide_context(db: AsyncSession, guide_id: int) -> str:
         if getattr(guide, "lifestyle_guide", None):
             parts.append(f"- 생활습관 안내: {guide.lifestyle_guide[:300]}")
 
-        if getattr(guide, "caution", None):
-            parts.append(f"- 주의사항: {guide.caution}")
+        if getattr(guide, "warning_signs", None):
+            parts.append(f"- 주의사항: {guide.warning_signs[:300]}")
 
         if len(parts) == 1:
             # 내용이 하나도 없으면 빈 문자열 반환

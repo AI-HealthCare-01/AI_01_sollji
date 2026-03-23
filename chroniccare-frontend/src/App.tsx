@@ -12,6 +12,7 @@ import AnalysisResult from './pages/AnalysisResult';
 import Register from './pages/Register';
 import MyPage from './pages/MyPage';
 import HealthProfile from './pages/HealthProfile';
+import AdminOverview from './pages/AdminOverview';
 
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -68,6 +69,10 @@ export default function App() {
 
         <Route path="/health-profile" element={
           <PrivateRoute><HealthProfile /></PrivateRoute>
+        } />
+
+        <Route path="/admin" element={
+          <PrivateRoute><AdminOverview /></PrivateRoute>
         } />
 
       </Routes>

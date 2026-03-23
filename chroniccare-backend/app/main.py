@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import get_settings
 from app.core.database import engine
-from app.routers import auth, documents, analysis, chat, rehab, profile, feedback
+from app.routers import auth, documents, analysis, chat, rehab, profile, feedback, admin
 from fastapi.security import HTTPBearer
 
 settings = get_settings()
@@ -22,29 +23,22 @@ app = FastAPI(
     debug=settings.debug,
     lifespan=lifespan,
     swagger_ui_init_oauth={},
+    docs_url=None if settings.app_env == "production" else "/docs",
+    redoc_url=None if settings.app_env == "production" else "/redoc",
+    openapi_url=None if settings.app_env == "production" else "/openapi.json",
 )
-
-# 환경별 허용 origin 분리
-if settings.app_env == "production":
-    allowed_origins = [
-        "http://localhost:3000",       # 배포 후 실제 도메인으로 교체
-        "http://localhost:80",
-    ]
-else:
-    # development / test
-    allowed_origins = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
+)
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=settings.trusted_hosts,
 )
 
 # 1️⃣ 인증
@@ -67,6 +61,9 @@ app.include_router(chat.router,      prefix="/api/v1/chat",      tags=["6. Chat"
 
 # 7️⃣ 피드백
 app.include_router(feedback.router,  prefix="/api/v1/feedback",  tags=["7. Feedback"])
+
+# 8️⃣ 관리자 읽기 전용 현황
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["8. Admin"])
 
 
 @app.get("/health", tags=["Health"])

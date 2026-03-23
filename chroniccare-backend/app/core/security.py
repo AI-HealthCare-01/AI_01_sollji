@@ -1,34 +1,43 @@
 from datetime import datetime, timedelta
+from typing import Any
+
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from jose import JWTError, jwt
-from app.core.config import get_settings
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.user import User
 
 
-settings = get_settings()
-
-SECRET_KEY = settings.secret_key   # .env에 추가 필요
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24시간
 http_bearer = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-def create_access_token(data: dict) -> str:
+
+def _get_jwt_config() -> tuple[str, str, int]:
+    settings = get_settings()
+    if not settings.secret_key:
+        raise RuntimeError("JWT secret_key가 설정되지 않았습니다.")
+    return settings.secret_key, settings.algorithm, settings.access_token_expire_minutes
+
+
+def create_access_token(data: dict[str, Any]) -> str:
+    secret_key, algorithm, expire_minutes = _get_jwt_config()
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
-def decode_access_token(token: str) -> dict:
+
+def decode_access_token(token: str) -> dict[str, Any] | None:
+    secret_key, algorithm, _ = _get_jwt_config()
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return jwt.decode(token, secret_key, algorithms=[algorithm])
     except JWTError:
         return None
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 async def get_current_user(
     credentials = Depends(http_bearer),  # ✅ HTTPBearer로 교체
@@ -42,11 +51,11 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_access_token(token)
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except JWTError:
+    except (JWTError, RuntimeError, AttributeError):
         raise credentials_exception
 
     result = await db.execute(select(User).where(User.id == int(user_id)))

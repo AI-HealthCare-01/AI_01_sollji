@@ -5,12 +5,14 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
+  const isAdmin = user?.email === 'sollji97@gmail.com';
 
   const navItems = [
     { path: '/dashboard', label: '대시보드' },
     { path: '/prescription', label: '처방전 분석' },
     { path: '/rehabilitation', label: '재활 운동' },
     { path: '/chat', label: '챗봇' },
+    ...(isAdmin ? [{ path: '/admin', label: '운영 현황' }] : []),
   ];
 
   return (

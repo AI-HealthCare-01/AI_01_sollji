@@ -1,19 +1,22 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.error_codes import raise_error
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.user import User
 from app.models import Document, OCRResult
+from app.models.user import User
 from app.services.ocr_service import get_ocr_service
-from app.core.error_codes import raise_error  # ✅ 추가
 
 router = APIRouter()
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_MIME_TYPES = [
     "image/jpeg",
@@ -21,6 +24,13 @@ ALLOWED_MIME_TYPES = [
     "image/webp",
     "application/pdf"
 ]
+
+
+def _remove_uploaded_file(file_path: Path) -> None:
+    try:
+        file_path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 @router.post("/upload", summary="처방전 이미지 업로드")
@@ -40,43 +50,47 @@ async def upload_document(
     if file_size > 10 * 1024 * 1024:
         raise_error("OCR_002")
 
-    ext = os.path.splitext(file.filename)[1]
+    ext = os.path.splitext(file.filename or "")[1]
     unique_filename = f"{uuid.uuid4()}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    file_path = UPLOAD_DIR / unique_filename
 
     with open(file_path, "wb") as f:
         f.write(contents)
 
-    # DB에 Document 저장
-    document = Document(
-        user_id=current_user.id,
-        document_type="prescription",
-        file_path=file_path,
-        file_size=file_size,
-        mime_type=file.content_type
-    )
-    db.add(document)
-    await db.commit()
-    await db.refresh(document)
-
-    # OCR_003: OCR 실행 — 실패 시 에러 코드 반환
     try:
+        document = Document(
+            user_id=current_user.id,
+            document_type="prescription",
+            file_path=str(file_path),
+            file_size=file_size,
+            mime_type=file.content_type
+        )
+        db.add(document)
+        await db.flush()
+
+        # OCR_003: OCR 실행 — 실패 시 에러 코드 반환
         ocr_service = get_ocr_service()
         extracted_text = await ocr_service.extract_text(contents)
+
+        # OCR_005: OCR 결과가 비어있으면 인식 실패로 처리
+        if not extracted_text or not extracted_text.strip():
+            await db.rollback()
+            _remove_uploaded_file(file_path)
+            raise_error("OCR_005")
+
+        ocr_result = OCRResult(
+            document_id=document.id,
+            raw_text=extracted_text,
+        )
+        db.add(ocr_result)
+        await db.commit()
+        await db.refresh(document)
+    except HTTPException:
+        raise
     except Exception:
+        await db.rollback()
+        _remove_uploaded_file(file_path)
         raise_error("OCR_003")
-
-    # OCR_005: OCR 결과가 비어있으면 인식 실패로 처리
-    if not extracted_text or not extracted_text.strip():
-        raise_error("OCR_005")
-
-    # OCRResult DB 저장
-    ocr_result = OCRResult(
-        document_id=document.id,
-        raw_text=extracted_text,
-    )
-    db.add(ocr_result)
-    await db.commit()
 
     return {
         "message": "파일 업로드 성공",
