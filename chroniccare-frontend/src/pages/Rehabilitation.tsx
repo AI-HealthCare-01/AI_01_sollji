@@ -4,8 +4,29 @@ import apiClient from '../api/client';
 import AppLayout from '../components/layout/AppLayout';
 import type { RehabPlan, RehabPlanDetail, RehabProgress } from '../types';
 
+function pad(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+function formatLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function parseLocalDate(dateString: string): Date {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function getWeekMonthLabel(dates: string[]): string {
+  const monthLabels = Array.from(new Set(
+    dates.map((date) => `${parseLocalDate(date).getMonth() + 1}월`)
+  ));
+  return monthLabels.join(' · ');
+}
+
 export default function Rehabilitation() {
   const navigate = useNavigate();
+  const todayString = formatLocalDate(new Date());
 
   const [plans, setPlans] = useState<RehabPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<RehabPlanDetail | null>(null);
@@ -13,9 +34,7 @@ export default function Rehabilitation() {
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [toggling, setToggling] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(todayString);
   const [selectedWeek, setSelectedWeek] = useState<number | 'all'>('all');
   const [completions, setCompletions] = useState<Record<string, number>>({});
 
@@ -28,7 +47,7 @@ export default function Rehabilitation() {
   };
 
   useEffect(() => {
-    const initialDate = new Date().toISOString().split('T')[0];
+    const initialDate = formatLocalDate(new Date());
     apiClient.get('/api/v1/rehab/plans')
       .then(res => {
         setPlans(res.data.plans);
@@ -124,7 +143,7 @@ export default function Rehabilitation() {
     } catch { alert('삭제에 실패했어요.'); }
   };
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const isToday = selectedDate === todayString;
 
   const getCalendarWeeks = (plan: RehabPlanDetail) => {
     const start = plan.created_at ? new Date(plan.created_at) : new Date();
@@ -136,7 +155,7 @@ export default function Rehabilitation() {
         const day = new Date(start);
         day.setDate(start.getDate() + (w - 1) * 7 + d);
         days.push({
-          date: day.toISOString().split('T')[0],
+          date: formatLocalDate(day),
           label: day.getDate(),
         });
       }
@@ -228,6 +247,7 @@ export default function Rehabilitation() {
                 <div className="space-y-3">
                   {calendarWeeks.map(({ week, days }) => {
                     const isLocked = week > currentWeek;
+                    const monthLabel = getWeekMonthLabel(days.map(({ date }) => date));
                     return (
                       <div key={week}>
                         <div className="flex items-center gap-2 mb-2">
@@ -240,6 +260,7 @@ export default function Rehabilitation() {
                           }`}>
                             {week}주차
                           </span>
+                          <span className="text-xs text-gray-400 font-medium">{monthLabel}</span>
                           {isLocked && <span className="text-xs text-gray-400">🔒 아직 시작 전</span>}
                           {week === currentWeek && <span className="text-xs text-blue-500 font-medium">진행 중</span>}
                           {!isLocked && week < currentWeek && <span className="text-xs text-green-500 font-medium">완료</span>}
@@ -247,7 +268,7 @@ export default function Rehabilitation() {
                         <div className="grid grid-cols-7 gap-1">
                           {days.map(({ date, label }) => {
                             const isSelected = date === selectedDate;
-                            const isDateToday = date === new Date().toISOString().split('T')[0];
+                            const isDateToday = date === todayString;
                             const dayExercises = selectedPlan.exercises.filter(
                               e => e.week_number === week
                             ).length;
@@ -268,7 +289,7 @@ export default function Rehabilitation() {
                                 `}
                               >
                                 <span className="text-xs opacity-60 mb-0.5">
-                                  {['일','월','화','수','목','금','토'][new Date(date).getDay()]}
+                                  {['일','월','화','수','목','금','토'][parseLocalDate(date).getDay()]}
                                 </span>
                                 <span className="text-sm font-bold">{label}</span>
 
