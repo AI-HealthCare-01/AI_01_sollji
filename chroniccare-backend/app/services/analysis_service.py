@@ -51,6 +51,98 @@ def _raise_llm_error(code: str) -> NoReturn:
     )
 
 
+def _raise_analysis_validation_error(message: str, hint: str = "") -> NoReturn:
+    raise HTTPException(
+        status_code=422,
+        detail={
+            "code": "ANALYSIS_001",
+            "message": message,
+            "hint": hint,
+        },
+    )
+
+
+def _normalize_for_match(value: str) -> str:
+    return re.sub(r"[^가-힣A-Za-z0-9]", "", value or "").lower()
+
+
+def _extract_diagnosis_code(value: str) -> str:
+    match = re.search(r"\b([A-Z]\d{2,3}(?:\.\d)?)\b", (value or "").upper())
+    return match.group(1) if match else ""
+
+
+def _looks_like_prescription_text(text: str) -> bool:
+    cleaned = text or ""
+    if len(cleaned.strip()) < 20:
+        return False
+
+    prescription_keywords = [
+        "처방", "처방전", "약품", "의약품", "투약", "용법", "질병분류기호",
+        "의료기관", "조제", "환자명", "교부", "복용",
+    ]
+    keyword_hits = sum(1 for keyword in prescription_keywords if keyword in cleaned)
+    has_date = bool(re.search(r"\d{4}[./-]\d{1,2}[./-]\d{1,2}", cleaned))
+    has_diagnosis_code = bool(re.search(r"\b[A-Z]\d{2,3}(?:\.\d)?\b", cleaned.upper()))
+
+    return keyword_hits >= 2 or (keyword_hits >= 1 and (has_date or has_diagnosis_code))
+
+
+def _validate_analysis_result(result: "AnalysisResult", raw_text: str) -> None:
+    normalized_text = _normalize_for_match(raw_text)
+
+    corroborated_fields = 0
+    for value in [result.patient_name, result.hospital_name, result.doctor_name]:
+        normalized_value = _normalize_for_match(value)
+        if len(normalized_value) >= 2 and normalized_value in normalized_text:
+            corroborated_fields += 1
+
+    visit_date_value = re.sub(r"[^0-9]", "", result.visit_date or "")
+    raw_text_digits = re.sub(r"[^0-9]", "", raw_text or "")
+    if len(visit_date_value) >= 8 and visit_date_value in raw_text_digits:
+        corroborated_fields += 1
+
+    diagnosis_code = _extract_diagnosis_code(result.diagnosis)
+    if diagnosis_code and diagnosis_code.lower() in normalized_text:
+        corroborated_fields += 1
+
+    schedule_drug_names = []
+    for item in result.medication_schedules:
+        schedule_date = item.get("schedule_date", {}) if isinstance(item, dict) else {}
+        drug_name = schedule_date.get("drug_name", "") if isinstance(schedule_date, dict) else ""
+        normalized_drug_name = _normalize_for_match(str(drug_name))
+        if normalized_drug_name:
+            schedule_drug_names.append(normalized_drug_name)
+
+    matched_drug_names = sum(1 for drug_name in schedule_drug_names if drug_name in normalized_text)
+
+    has_basic_result = any([
+        result.patient_name,
+        result.hospital_name,
+        result.visit_date,
+        result.diagnosis,
+        result.medication_guide,
+        schedule_drug_names,
+    ])
+
+    if not has_basic_result:
+        _raise_analysis_validation_error(
+            "처방전에서 의미 있는 정보를 찾지 못했어요.",
+            "글자가 선명한 처방전 또는 진료 문서를 다시 업로드해주세요.",
+        )
+
+    if not _looks_like_prescription_text(raw_text):
+        _raise_analysis_validation_error(
+            "업로드한 내용이 처방전으로 인식되지 않았어요.",
+            "병원 또는 약국에서 발급된 문서를 선명하게 촬영한 뒤 다시 시도해주세요.",
+        )
+
+    if corroborated_fields == 0 and matched_drug_names == 0:
+        _raise_analysis_validation_error(
+            "OCR 텍스트와 분석 결과가 일치하지 않아 분석을 중단했어요.",
+            "엉뚱한 텍스트나 흐린 이미지 대신 실제 처방전 이미지를 다시 올려주세요.",
+        )
+
+
 class AnalysisServiceBase(ABC):
     @abstractmethod
     async def analyze_text(self, text: str, user_profile: str = "", current_symptom: str = "") -> AnalysisResult:
@@ -309,7 +401,7 @@ class OpenAIAnalysisService(AnalysisServiceBase):
             except json.JSONDecodeError:
                 _raise_llm_error("LLM_002")
 
-        return AnalysisResult(
+        result = AnalysisResult(
             patient_name=_to_str(data.get("patient_name", "")),
             birth_date=_to_str(data.get("birth_date", "")),
             age=int(data.get("age", 0)),
@@ -326,6 +418,9 @@ class OpenAIAnalysisService(AnalysisServiceBase):
             drug_interactions=data.get("drug_interactions", []),
             medication_schedules=data.get("medication_schedules", []),
         )
+
+        _validate_analysis_result(result, text)
+        return result
 
 
 def get_analysis_service() -> AnalysisServiceBase:

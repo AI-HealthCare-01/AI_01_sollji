@@ -5,8 +5,10 @@ dist/
 wheels/
 *.egg-info
 .venv
-.*.env
 .env
+.env.*
+*.env
+*.env.*
 .idea/
 .vscode
 .coverage
@@ -15,4 +17,3 @@ wheels/
 _OLD/
 uploads/
 test.jpg
-.env

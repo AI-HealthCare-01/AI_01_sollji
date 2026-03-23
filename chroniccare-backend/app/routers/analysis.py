@@ -6,13 +6,15 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 import asyncio
+import time
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.document import Document, OCRResult
 from app.models.analysis import GuideResult, DrugInteraction, MedicationSchedule
-from app.models.rehab import RehabPlan, RehabExercise
+from app.models.chat import ChatSession
+from app.models.rehab import ExerciseLibrary, RehabPlan, RehabExercise
 from app.services.analysis_service import get_analysis_service
 from app.services.drug_normalizer import normalize_drug_names, apply_normalization
 from app.services.rehab_service import get_rehab_service
@@ -35,7 +37,16 @@ async def run_analysis_background(
         current_symptom: str = "",
 ):
     async with AsyncSessionLocal() as db:
+        start_time = time.perf_counter()
         try:
+            logger.info(
+                "[분석 시작] guide_id=%s user_id=%s symptom=%s ocr_chars=%s",
+                guide_result_id,
+                user_id,
+                bool(current_symptom.strip()),
+                len(ocr_raw_text or ""),
+            )
+
             # 1. 유저의 건강 프로필 끌어오기
             result_user = await db.execute(
                 select(User)
@@ -66,12 +77,28 @@ async def run_analysis_background(
                     if meds:
                         profile_info += f"- 현재 복용중인 약: {', '.join(meds)}\n"
 
+            logger.info(
+                "[분석 준비 완료] guide_id=%s profile_chars=%s conditions=%s meds=%s",
+                guide_result_id,
+                len(profile_info),
+                len(user.chronic_conditions) if user and user.chronic_conditions else 0,
+                len(user.medications) if user and user.medications else 0,
+            )
+
             # 3. ① 분석 LLM 먼저 실행 (rehab에 결과 필요하므로 순차)
             service = get_analysis_service()
+            analysis_started = time.perf_counter()
             result = await service.analyze_text(
                 text=ocr_raw_text,
                 user_profile=profile_info,
                 current_symptom=current_symptom,
+            )
+            logger.info(
+                "[LLM 분석 완료] guide_id=%s elapsed_ms=%s interactions=%s schedules=%s",
+                guide_result_id,
+                int((time.perf_counter() - analysis_started) * 1000),
+                len(result.drug_interactions),
+                len(result.medication_schedules),
             )
 
             # 4. ② normalize + rehab 병렬 실행 ─────────────────────
@@ -108,10 +135,18 @@ async def run_analysis_background(
                     analysis_summary=rehab_summary
                 )
 
+            post_processing_started = time.perf_counter()
             normalize_result, rehab_result = await asyncio.gather(
                 run_normalize(),
                 run_rehab(),
                 return_exceptions=True,  # 하나 실패해도 다른 쪽 결과 살림
+            )
+            logger.info(
+                "[후처리 완료] guide_id=%s elapsed_ms=%s normalize_error=%s rehab_error=%s",
+                guide_result_id,
+                int((time.perf_counter() - post_processing_started) * 1000),
+                isinstance(normalize_result, Exception),
+                isinstance(rehab_result, Exception),
             )
             # ────────────────────────────────────────────────────────
 
@@ -182,58 +217,117 @@ async def run_analysis_background(
             logger.info(
                 f"[분석 완료] guide_id={guide.id} | "
                 f"interactions={len(result.drug_interactions)} | "
-                f"schedules={len(result.medication_schedules)}"
+                f"schedules={len(result.medication_schedules)} | "
+                f"elapsed_ms={int((time.perf_counter() - start_time) * 1000)}"
             )
 
             # 7. 재활 플랜 저장
             if isinstance(rehab_result, Exception):
                 logger.error(f"[재활 플랜 생성 실패] guide_result_id={guide_result_id}, error={rehab_result}")
             else:
-                existing_plans_result = await db.execute(
-                    select(RehabPlan).where(
-                        RehabPlan.user_id == user_id,
-                        RehabPlan.is_active == True,
+                try:
+                    requested_ids = [
+                        ex_data.get("exercise_id")
+                        for ex_data in rehab_result.exercises
+                        if ex_data.get("exercise_id")
+                    ]
+                    valid_ids_result = await db.execute(
+                        select(ExerciseLibrary.exercise_id).where(
+                            ExerciseLibrary.exercise_id.in_(requested_ids)
+                        )
                     )
-                )
-                existing_plans = existing_plans_result.scalars().all()
-                for old_plan in existing_plans:
-                    old_plan.is_active = False
-                await db.flush()
+                    valid_ids = {row[0] for row in valid_ids_result.fetchall()}
+                    valid_exercises = [
+                        ex_data for ex_data in rehab_result.exercises
+                        if ex_data.get("exercise_id") in valid_ids
+                    ]
+                    invalid_ids = sorted(set(requested_ids) - valid_ids)
 
-                rehab_plan = RehabPlan(
-                    user_id=user_id,
-                    guide_result_id=guide_result_id,
-                    target_area=rehab_result.target_area,
-                    duration_weeks=rehab_result.duration_weeks,
-                    precautions=rehab_result.precautions,
-                    is_active=True,
-                )
-                db.add(rehab_plan)
-                await db.flush()
+                    if invalid_ids:
+                        logger.warning(
+                            "[재활 운동 ID 불일치] guide_id=%s invalid_ids=%s",
+                            guide_result_id,
+                            ",".join(invalid_ids),
+                        )
 
-                for ex_data in rehab_result.exercises:
-                    rehab_ex = RehabExercise(
-                        rehab_plan_id=rehab_plan.id,
-                        exercise_id=ex_data["exercise_id"],
-                        week_number=ex_data.get("week_number"),
-                        sequence_order=ex_data.get("sequence_order"),
-                        sets=ex_data.get("sets"),
-                        reps=ex_data.get("reps"),
-                        duration_seconds=ex_data.get("duration_seconds"),
-                        frequency_per_day=ex_data.get("frequency_per_day"),
-                        special_notes=ex_data.get("special_notes"),
+                    if not valid_exercises:
+                        logger.error(
+                            "[재활 플랜 저장 건너뜀] guide_id=%s valid_exercises=0 target_area=%s",
+                            guide_result_id,
+                            rehab_result.target_area,
+                        )
+                    else:
+                        existing_plans_result = await db.execute(
+                            select(RehabPlan).where(
+                                RehabPlan.user_id == user_id,
+                                RehabPlan.is_active == True,
+                            )
+                        )
+                        existing_plans = existing_plans_result.scalars().all()
+                        for old_plan in existing_plans:
+                            old_plan.is_active = False
+                        await db.flush()
+
+                        rehab_plan = RehabPlan(
+                            user_id=user_id,
+                            guide_result_id=guide_result_id,
+                            target_area=rehab_result.target_area,
+                            duration_weeks=rehab_result.duration_weeks,
+                            precautions=rehab_result.precautions,
+                            is_active=True,
+                        )
+                        db.add(rehab_plan)
+                        await db.flush()
+
+                        for ex_data in valid_exercises:
+                            rehab_ex = RehabExercise(
+                                rehab_plan_id=rehab_plan.id,
+                                exercise_id=ex_data["exercise_id"],
+                                week_number=ex_data.get("week_number"),
+                                sequence_order=ex_data.get("sequence_order"),
+                                sets=ex_data.get("sets"),
+                                reps=ex_data.get("reps"),
+                                duration_seconds=ex_data.get("duration_seconds"),
+                                frequency_per_day=ex_data.get("frequency_per_day"),
+                                special_notes=ex_data.get("special_notes"),
+                            )
+                            db.add(rehab_ex)
+
+                        await db.commit()
+                        logger.info(
+                            "[재활 플랜 생성 완료] user_id=%s area=%s valid=%s invalid=%s",
+                            user_id,
+                            rehab_result.target_area,
+                            len(valid_exercises),
+                            len(invalid_ids),
+                        )
+                except Exception as rehab_save_error:
+                    await db.rollback()
+                    logger.exception(
+                        "[재활 플랜 저장 실패] guide_id=%s user_id=%s error=%s",
+                        guide_result_id,
+                        user_id,
+                        rehab_save_error,
                     )
-                    db.add(rehab_ex)
 
-                await db.commit()
-                logger.info(f"[재활 플랜 생성 완료] user_id={user_id}, area={rehab_result.target_area}")
-
-        except Exception as e:
+        except HTTPException as e:
+            logger.warning("[분석 실패] guide_id=%s user_id=%s detail=%s", guide_result_id, user_id, e.detail)
             async with AsyncSessionLocal() as error_db:
                 guide = await error_db.get(GuideResult, guide_result_id)
                 if guide:
                     guide.status = "failed"
-                    guide.error_message = str(e)
+                    detail = e.detail if isinstance(e.detail, dict) else {"message": str(e.detail)}
+                    message = detail.get("message") or "분석에 실패했어요."
+                    hint = detail.get("hint")
+                    guide.error_message = f"{message} {hint}".strip() if hint else message
+                    await error_db.commit()
+        except Exception as e:
+            logger.exception("[분석 실패] guide_id=%s user_id=%s error=%s", guide_result_id, user_id, e)
+            async with AsyncSessionLocal() as error_db:
+                guide = await error_db.get(GuideResult, guide_result_id)
+                if guide:
+                    guide.status = "failed"
+                    guide.error_message = "분석 중 오류가 발생했어요. 잠시 후 다시 시도해주세요."
                     await error_db.commit()
 
 # ─────────────────────────────────────────
@@ -283,6 +377,7 @@ async def analyze_document(
         user_id=current_user.id,
         current_symptom=body.current_symptom,
     )
+    logger.info("[분석 요청 접수] guide_id=%s document_id=%s user_id=%s", guide.id, document_id, current_user.id)
 
     return {
         "guide_result_id": guide.id,
@@ -406,7 +501,24 @@ async def delete_analysis_result(
     if not guide or guide.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="분석 결과를 찾을 수 없거나 삭제 권한이 없습니다.")
 
+    chat_sessions_result = await db.execute(
+        select(ChatSession).where(
+            ChatSession.user_id == current_user.id,
+            ChatSession.related_guide_id == guide_result_id,
+        )
+    )
+    chat_sessions = chat_sessions_result.scalars().all()
+    for session in chat_sessions:
+        await db.delete(session)
+
     await db.delete(guide)
     await db.commit()
+
+    logger.info(
+        "[분석 삭제 완료] guide_id=%s user_id=%s deleted_chat_sessions=%s",
+        guide_result_id,
+        current_user.id,
+        len(chat_sessions),
+    )
 
     return {"message": "처방전 분석 결과가 성공적으로 삭제되었습니다."}
