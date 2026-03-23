@@ -34,6 +34,9 @@ const getErrorMessage = (err: unknown, fallback: string): string => {
   return e?.response?.data?.detail ?? fallback;
 };
 
+const ANALYSIS_POLL_INTERVAL_MS = 3000;
+const ANALYSIS_MAX_ATTEMPTS = 40;
+
 export const useAnalysis = () => {
   const [state, setState] = useState<AnalysisState>({
     isUploading: false,
@@ -47,11 +50,8 @@ export const useAnalysis = () => {
 
   // 폴링 함수
   const pollStatus = useCallback(async (guideResultId: number) => {
-    const MAX_ATTEMPTS = 30;
-    const INTERVAL_MS = 3000;
-
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
+    for (let attempt = 0; attempt < ANALYSIS_MAX_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, ANALYSIS_POLL_INTERVAL_MS));
 
       try {
         const data: AnalysisResult = await getAnalysisStatus(guideResultId);
@@ -85,7 +85,7 @@ export const useAnalysis = () => {
       ...prev,
       isAnalyzing: false,
       status: 'failed',
-      error: '분석 시간이 초과됐어요. 다시 시도해주세요.',
+      error: '분석이 예상보다 오래 걸리고 있어요. 잠시 후 다시 시도하거나 이력을 확인해주세요.',
     }));
   }, []);
 

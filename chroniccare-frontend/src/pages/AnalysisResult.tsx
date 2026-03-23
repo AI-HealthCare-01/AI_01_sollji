@@ -207,13 +207,13 @@ export default function AnalysisResult() {
                       ))}
                     </div>
 
-                    <div className={`text-sm rounded-lg px-3 py-2 ${
-                      withFood ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
-                    }`}>
-                      {withFood
-                        ? '반드시 식사 후 복용하세요.'
-                        : '식사 전 또는 공복에 복용하세요.'}
-                    </div>
+                  <div className={`text-sm rounded-lg px-3 py-2 ${
+                    withFood ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    {withFood
+                      ? '식사 후 복용하세요. 식사를 거를 경우 소량의 음식과 함께 복용하세요.'
+                      : '식사 30분 전 또는 공복에 복용하세요.'}
+                  </div>
                   </div>
                 );
               })}

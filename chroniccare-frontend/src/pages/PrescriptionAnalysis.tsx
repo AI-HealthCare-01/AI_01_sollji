@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { uploadDocument, requestAnalysis, getAnalysisStatus } from '../api/client';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
@@ -52,6 +52,23 @@ interface AnalysisResult {
   medication_schedules?: MedicationSchedule[];
 }
 
+const EMPTY_RESULT: AnalysisResult = {
+  patient_name: '',
+  birth_date: '',
+  age: 0,
+  gender: '',
+  diagnosis: '',
+  hospital_name: '',
+  doctor_name: '',
+  visit_date: '',
+  summary: '',
+  medication_guide: '',
+  lifestyle_guide: '',
+  warning_signs: '',
+  drug_interactions: [],
+  medication_schedules: [],
+};
+
 const BODY_PARTS = ['손목/손', '어깨', '허리', '무릎/다리', '발목', '기타'];
 const SITUATIONS = ['골절/뼈 부상', '수술 후', '만성 통증', '근육 부상'];
 
@@ -94,6 +111,162 @@ function normalizeDiagnosis(raw: string): string {
 function getRecommendedTimes(count: number): string[] {
   return RECOMMENDED_TIMES[count] ?? RECOMMENDED_TIMES[3];
 }
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeMedicationItem(value: unknown): MedicationItem | null {
+  if (!isObject(value)) return null;
+  const name = typeof value.name === 'string' ? value.name : '';
+  const times = Array.isArray(value.times)
+    ? value.times.filter((time): time is string => typeof time === 'string')
+    : [];
+  const withFood = typeof value.with_food === 'boolean' ? value.with_food : false;
+  const durationDays = typeof value.duration_days === 'number' ? value.duration_days : undefined;
+
+  if (!name && times.length === 0) return null;
+
+  return {
+    name,
+    times,
+    with_food: withFood,
+    duration_days: durationDays,
+  };
+}
+
+function normalizeMedicationSchedule(value: unknown): MedicationSchedule | null {
+  if (!isObject(value)) return null;
+  const scheduleDate = isObject(value.schedule_date) ? value.schedule_date : {};
+
+  const medications = Array.isArray(scheduleDate.medications)
+    ? scheduleDate.medications
+        .map(normalizeMedicationItem)
+        .filter((item): item is MedicationItem => item !== null)
+    : undefined;
+
+  const normalized: MedicationScheduleDate = {
+    medications,
+    duration_days: typeof scheduleDate.duration_days === 'number' ? scheduleDate.duration_days : undefined,
+    drug_name: typeof scheduleDate.drug_name === 'string' ? scheduleDate.drug_name : undefined,
+    times: Array.isArray(scheduleDate.times)
+      ? scheduleDate.times.filter((time): time is string => typeof time === 'string')
+      : undefined,
+    with_food: typeof scheduleDate.with_food === 'boolean' ? scheduleDate.with_food : undefined,
+  };
+
+  const hasContent =
+    (normalized.medications && normalized.medications.length > 0) ||
+    normalized.drug_name ||
+    (normalized.times && normalized.times.length > 0);
+
+  return hasContent ? { schedule_date: normalized } : null;
+}
+
+function normalizeDrugInteraction(value: unknown): DrugInteraction | null {
+  if (!isObject(value)) return null;
+
+  const medicationA = typeof value.medication_a === 'string' ? value.medication_a : '';
+  const medicationB = typeof value.medication_b === 'string' ? value.medication_b : '';
+
+  if (!medicationA && !medicationB) return null;
+
+  const severity =
+    value.severity === 'high' || value.severity === 'medium' || value.severity === 'low'
+      ? value.severity
+      : 'low';
+
+  return {
+    medication_a: medicationA,
+    medication_b: medicationB,
+    interaction_type: typeof value.interaction_type === 'string' ? value.interaction_type : '',
+    severity,
+    mechanism: typeof value.mechanism === 'string' ? value.mechanism : '',
+    recommendation: typeof value.recommendation === 'string' ? value.recommendation : '',
+  };
+}
+
+function normalizeAnalysisResult(value: unknown): AnalysisResult {
+  if (!isObject(value)) return EMPTY_RESULT;
+
+  return {
+    patient_name: typeof value.patient_name === 'string' ? value.patient_name : '',
+    birth_date: typeof value.birth_date === 'string' ? value.birth_date : '',
+    age: typeof value.age === 'number' ? value.age : 0,
+    gender: typeof value.gender === 'string' ? value.gender : '',
+    diagnosis: typeof value.diagnosis === 'string' ? value.diagnosis : '',
+    hospital_name: typeof value.hospital_name === 'string' ? value.hospital_name : '',
+    doctor_name: typeof value.doctor_name === 'string' ? value.doctor_name : '',
+    visit_date: typeof value.visit_date === 'string' ? value.visit_date : '',
+    summary: typeof value.summary === 'string' ? value.summary : '',
+    medication_guide: typeof value.medication_guide === 'string' ? value.medication_guide : '',
+    lifestyle_guide: typeof value.lifestyle_guide === 'string' ? value.lifestyle_guide : '',
+    warning_signs: typeof value.warning_signs === 'string' ? value.warning_signs : '',
+    drug_interactions: Array.isArray(value.drug_interactions)
+      ? value.drug_interactions
+          .map(normalizeDrugInteraction)
+          .filter((item): item is DrugInteraction => item !== null)
+      : [],
+    medication_schedules: Array.isArray(value.medication_schedules)
+      ? value.medication_schedules
+          .map(normalizeMedicationSchedule)
+          .filter((item): item is MedicationSchedule => item !== null)
+      : [],
+  };
+}
+
+function formatApiDetail(detail: unknown): string | null {
+  if (typeof detail === 'string') {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (isObject(item)) {
+          const message = typeof item.msg === 'string'
+            ? item.msg
+            : typeof item.message === 'string'
+              ? item.message
+              : null;
+          const location = Array.isArray(item.loc)
+            ? item.loc.filter((value): value is string => typeof value === 'string').join(' > ')
+            : null;
+
+          if (message && location) return `${location}: ${message}`;
+          if (message) return message;
+        }
+        return null;
+      })
+      .filter((value): value is string => Boolean(value));
+
+    return parts.length > 0 ? parts.join(' / ') : null;
+  }
+
+  if (isObject(detail)) {
+    const message = typeof detail.message === 'string'
+      ? detail.message
+      : typeof detail.detail === 'string'
+        ? detail.detail
+        : typeof detail.hint === 'string'
+          ? detail.hint
+          : null;
+
+    if (message) return message;
+
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+const ANALYSIS_POLL_INTERVAL_MS = 3000;
+const ANALYSIS_MAX_ATTEMPTS = 40;
 
 function SeverityBadge({ severity }: { severity: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -158,8 +331,12 @@ export default function PrescriptionAnalysis() {
   const [guideResultId, setGuideResultId] = useState<number | null>(null);
   const [selectedParts, setSelectedParts] = useState<string[]>([]);
   const [selectedSituations, setSelectedSituations] = useState<string[]>([]);
+  const [processingMessage, setProcessingMessage] = useState('처방전을 읽고 약물 정보와 생활 가이드를 생성하고 있어요.');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollingIntervalRef = useRef<number | null>(null);
+  const activeGuideResultIdRef = useRef<number | null>(null);
+  const analysisRunIdRef = useRef(0);
   const navigate = useNavigate();
 
   const togglePart = (v: string) =>
@@ -184,38 +361,76 @@ export default function PrescriptionAnalysis() {
     setError(null);
   };
 
-  const pollStatus = async (id: number) => {
-    const maxAttempts = 30;
+  const clearPolling = () => {
+    if (pollingIntervalRef.current !== null) {
+      window.clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
+  const pollStatus = (id: number) => {
+    clearPolling();
+    activeGuideResultIdRef.current = id;
     let attempts = 0;
-    const interval = setInterval(async () => {
+
+    pollingIntervalRef.current = window.setInterval(async () => {
+      if (activeGuideResultIdRef.current !== id) {
+        clearPolling();
+        return;
+      }
+
       attempts++;
+      if (attempts === 10) {
+        setProcessingMessage('외부 OCR/AI 서버와 연결 중이에요. 첫 분석은 조금 더 걸릴 수 있어요.');
+      } else if (attempts === 25) {
+        setProcessingMessage('분석이 길어지고 있어요. 결과를 확인하는 중이니 조금만 더 기다려주세요.');
+      }
+
       try {
         const data = await getAnalysisStatus(id);
+
+        if (activeGuideResultIdRef.current !== id) {
+          clearPolling();
+          return;
+        }
+
         if (data.status === 'completed') {
-          clearInterval(interval);
-          setResult(data);
+          clearPolling();
+          setResult(normalizeAnalysisResult(data));
           setStep('completed');
-        } else if (data.status === 'failed') {
-          clearInterval(interval);
+          return;
+        }
+
+        if (data.status === 'failed') {
+          clearPolling();
           setError(data.error || '분석에 실패했습니다.');
           setStep('failed');
-        } else if (attempts >= maxAttempts) {
-          clearInterval(interval);
-          setError('분석 시간이 초과되었습니다. 다시 시도해주세요.');
+          return;
+        }
+
+        if (attempts >= ANALYSIS_MAX_ATTEMPTS) {
+          clearPolling();
+          setError('분석이 예상보다 오래 걸리고 있어요. 잠시 후 다시 시도하거나, 대시보드에서 분석 이력을 확인해주세요.');
           setStep('failed');
         }
       } catch {
-        clearInterval(interval);
+        clearPolling();
         setError('상태 확인 중 오류가 발생했습니다.');
         setStep('failed');
       }
-    }, 2000);
+    }, ANALYSIS_POLL_INTERVAL_MS);
   };
 
   const handleAnalyze = async () => {
     if (!selectedFile) return;
+    const currentRunId = ++analysisRunIdRef.current;
+    clearPolling();
+    activeGuideResultIdRef.current = null;
     setError(null);
+    setResult(null);
+    setGuideResultId(null);
     setStep('processing');
+    setProcessingMessage('처방전을 읽고 약물 정보와 생활 가이드를 생성하고 있어요.');
 
     const currentSymptom = [
       ...selectedParts.map(p => `${p} 부위`),
@@ -224,18 +439,32 @@ export default function PrescriptionAnalysis() {
 
     try {
       const uploadData = await uploadDocument(selectedFile);
+      if (analysisRunIdRef.current !== currentRunId) return;
       setOcrText(uploadData.extracted_text);
+
       const analysisData = await requestAnalysis(uploadData.document_id, currentSymptom);
+      if (analysisRunIdRef.current !== currentRunId) return;
       setGuideResultId(analysisData.guide_result_id);
-      await pollStatus(analysisData.guide_result_id);
+      pollStatus(analysisData.guide_result_id);
     } catch (err: unknown) {
+      if (analysisRunIdRef.current !== currentRunId) return;
+      const responseStatus = (err as { response?: { status?: number; data?: { detail?: unknown } } })?.response?.status;
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      const formattedDetail = formatApiDetail(detail);
       const message = err instanceof Error ? err.message : '오류가 발생했습니다.';
-      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || message);
+      if (responseStatus === 422) {
+        setError(formattedDetail || '업로드 형식이 올바르지 않아요. JPG, PNG, WEBP, PDF 파일을 다시 확인해주세요.');
+      } else {
+        setError(formattedDetail || message);
+      }
       setStep('failed');
     }
   };
 
   const handleReset = () => {
+    clearPolling();
+    activeGuideResultIdRef.current = null;
+    analysisRunIdRef.current += 1;
     setStep('upload');
     setSelectedFile(null);
     setPreview(null);
@@ -247,9 +476,22 @@ export default function PrescriptionAnalysis() {
     setSelectedSituations([]);
   };
 
+  useEffect(() => () => clearPolling(), []);
+
   const chatQuestions = ['이 약 부작용이 있나요?', '음식 주의사항 알려줘', '약을 빠뜨렸을 때 어떻게 하나요?'];
   const goodExamples = ['병원 발급 처방전', '약국 조제 영수증', '진료 확인서', '글씨가 선명한 사진'];
   const badExamples = ['흐릿하거나 초점 안 맞는 사진', '일부가 잘린 문서', '빛 반사로 글씨가 안 보이는 사진', '손으로 쓴 메모'];
+  const medicationSchedules = Array.isArray(result?.medication_schedules) ? result.medication_schedules : [];
+  const drugInteractions = Array.isArray(result?.drug_interactions) ? result.drug_interactions : [];
+  const hasMeaningfulAnalysis =
+    Boolean(
+      result?.summary ||
+      result?.medication_guide ||
+      result?.warning_signs ||
+      result?.lifestyle_guide ||
+      medicationSchedules.length > 0 ||
+      drugInteractions.length > 0
+    );
 
   return (
     <AppLayout>
@@ -361,8 +603,8 @@ export default function PrescriptionAnalysis() {
               <div className="text-6xl mb-4 animate-bounce">🔍</div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">AI가 분석 중이에요</h2>
               <p className="text-lg text-gray-500 mb-6">
-                처방전을 읽고 약물 정보와 생활 가이드를 생성하고 있어요.<br />
-                보통 30초~1분 정도 걸려요.
+                {processingMessage}<br />
+                보통 30초~1분, 첫 분석은 최대 2분 정도 걸릴 수 있어요.
               </p>
               {ocrText && (
                 <div className="bg-gray-50 rounded-xl p-4 text-left mt-4">
@@ -379,6 +621,16 @@ export default function PrescriptionAnalysis() {
           {/* STEP 3: 완료 */}
           {step === 'completed' && result && (
             <div className="space-y-4">
+
+              {!hasMeaningfulAnalysis && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+                  <h3 className="text-xl font-bold text-amber-700 mb-2">분석 가능한 처방전이 아닐 수 있어요</h3>
+                  <p className="text-base text-amber-700 leading-relaxed">
+                    업로드한 이미지에서 처방전 정보를 충분히 찾지 못했어요. 처방전, 약국 영수증, 진료 문서처럼
+                    글자가 선명한 이미지를 다시 업로드해 주세요.
+                  </p>
+                </div>
+              )}
 
               {/* 진료 정보 */}
               <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -407,19 +659,23 @@ export default function PrescriptionAnalysis() {
               </div>
 
               {/* 분석 요약 */}
-              <div className="bg-white rounded-2xl shadow-sm p-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-3">분석 요약</h3>
-                <p className="text-base text-gray-600 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
-              </div>
+              {result.summary && (
+                <div className="bg-white rounded-2xl shadow-sm p-6">
+                  <h3 className="text-xl font-bold text-gray-800 mb-3">분석 요약</h3>
+                  <p className="text-base text-gray-600 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
+                </div>
+              )}
 
               {/* 약물 복용 가이드 */}
-              <div className="bg-white rounded-2xl shadow-sm p-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-3">약물 복용 가이드</h3>
-                <p className="text-base text-gray-600 leading-relaxed whitespace-pre-wrap">{result.medication_guide}</p>
-              </div>
+              {result.medication_guide && (
+                <div className="bg-white rounded-2xl shadow-sm p-6">
+                  <h3 className="text-xl font-bold text-gray-800 mb-3">약물 복용 가이드</h3>
+                  <p className="text-base text-gray-600 leading-relaxed whitespace-pre-wrap">{result.medication_guide}</p>
+                </div>
+              )}
 
               {/* 복약 스케줄 */}
-              {result.medication_schedules && result.medication_schedules.length > 0 && (
+              {medicationSchedules.length > 0 && (
                 <div className="bg-white rounded-2xl shadow-sm p-6">
                   <h3 className="text-xl font-bold text-gray-800 mb-1">복약 스케줄</h3>
                   <p className="text-sm text-gray-400 mb-4">
@@ -427,8 +683,8 @@ export default function PrescriptionAnalysis() {
                     <span className="font-medium text-gray-500">식후 약은 반드시 식사 후 복용하세요.</span>
                   </p>
                   <div className="space-y-3">
-                    {result.medication_schedules.map((scheduleItem, idx) => {
-                      const sd = scheduleItem.schedule_date;
+                    {medicationSchedules.map((scheduleItem, idx) => {
+                      const sd = scheduleItem?.schedule_date ?? {};
 
                       // 두 가지 구조 모두 처리
                       const medications: MedicationItem[] = sd.medications ?? [
@@ -494,16 +750,16 @@ export default function PrescriptionAnalysis() {
               )}
 
               {/* 약물 상호작용 */}
-              {result.drug_interactions && result.drug_interactions.length > 0 && (
+              {drugInteractions.length > 0 && (
                 <div className="bg-white rounded-2xl shadow-sm p-6">
                   <h3 className="text-xl font-bold text-gray-800 mb-4">
                     약물 상호작용
                     <span className="ml-2 text-sm font-normal text-gray-400">
-                      {result.drug_interactions.length}건 발견
+                      {drugInteractions.length}건 발견
                     </span>
                   </h3>
                   <div className="space-y-3">
-                    {result.drug_interactions.map((item, idx) => (
+                    {drugInteractions.map((item, idx) => (
                       <div key={idx} className="border border-gray-100 rounded-xl p-4 bg-gray-50">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="font-semibold text-gray-700 text-base">{item.medication_a}</span>
@@ -602,7 +858,11 @@ export default function PrescriptionAnalysis() {
           {step === 'failed' && (
             <div className="bg-white rounded-2xl shadow-sm p-10 text-center">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">분석에 실패했어요</h2>
-              <p className="text-red-500 text-base mb-6">{error}</p>
+              <p className="text-red-500 text-base mb-6">
+                {typeof error === 'string' && error.trim()
+                  ? error
+                  : '업로드한 파일을 분석할 수 없어요. 처방전 이미지 또는 PDF를 다시 확인해주세요.'}
+              </p>
               <button onClick={handleReset}
                 className="bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-all text-lg">
                 다시 시도하기
