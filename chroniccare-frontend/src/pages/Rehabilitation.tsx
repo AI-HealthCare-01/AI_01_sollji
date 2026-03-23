@@ -200,7 +200,6 @@ export default function Rehabilitation() {
                   }`}
                 >
                   {p.target_area}
-                  {p.is_active && <span className="ml-1.5">🟢</span>}
                 </button>
                 <button
                   onClick={() => void handleDeletePlan(p.id)}
@@ -225,7 +224,6 @@ export default function Rehabilitation() {
 
               {/* 현재 부위 배너 */}
               <div className="bg-blue-50 border border-blue-200 rounded-2xl px-6 py-5 flex items-center gap-4 relative">
-                <span className="text-4xl">🩺</span>
                 <div>
                   <p className="text-sm text-blue-400 font-medium">현재 재활 중인 부위</p>
                   <p className="text-2xl font-bold text-blue-700">{selectedPlan.target_area}</p>

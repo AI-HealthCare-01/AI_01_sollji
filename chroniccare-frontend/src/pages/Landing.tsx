@@ -54,12 +54,12 @@ export default function Landing() {
   ];
 
   const conditions = [
-    { icon: '🫀', label: '고혈압' },
-    { icon: '🩸', label: '당뇨' },
-    { icon: '🦴', label: '골다공증' },
-    { icon: '🫁', label: '고지혈증' },
-    { icon: '🦵', label: '관절염' },
-    { icon: '🧠', label: '기타 만성질환' },
+    { label: '고혈압' },
+    { label: '당뇨' },
+    { label: '골다공증' },
+    { label: '고지혈증' },
+    { label: '관절염' },
+    { label: '기타 만성질환' },
   ];
 
   return (
@@ -112,7 +112,7 @@ export default function Landing() {
       <section className="bg-gradient-to-br from-blue-50 via-white to-blue-50 py-16 px-8 text-center">
         <div className="max-w-3xl mx-auto">
           <span className="inline-block bg-blue-100 text-blue-600 text-sm font-semibold px-4 py-1.5 rounded-full mb-6">
-            🏥 만성질환자를 위한 AI 건강 관리
+            만성질환자를 위한 AI 건강 관리
           </span>
           <h2 className="text-5xl font-extrabold text-gray-900 leading-tight mb-5">
             처방전 한 장으로<br />
@@ -154,9 +154,9 @@ export default function Landing() {
             {conditions.map(c => (
               <span
                 key={c.label}
-                className="flex items-center gap-1.5 bg-blue-50 text-blue-700 text-sm font-medium px-4 py-2 rounded-full"
+                className="flex items-center bg-blue-50 text-blue-700 text-sm font-medium px-4 py-2 rounded-full"
               >
-                {c.icon} {c.label}
+                {c.label}
               </span>
             ))}
           </div>
