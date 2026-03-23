@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import AppLayout from '../components/layout/AppLayout';
 import { useAuthStore } from '../store/authStore';
 import ReactMarkdown from 'react-markdown';
+import type { GuideHistory } from '../types';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -15,6 +16,7 @@ interface Session {
   title: string;
   context_type: string;
   session_status: string;
+  related_guide_id?: number | null;
   started_at: string;
 }
 
@@ -28,13 +30,16 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);           // 첫 토큰 대기 중
   const [streamingContent, setStreamingContent] = useState(''); // 스트리밍 누적 텍스트
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
+  const [defaultGuideId, setDefaultGuideId] = useState<number | null>(null);
   const token = useAuthStore(state => state.token);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const isComposingRef = useRef(false);
 
   // 현재 세션 ID를 ref로도 관리 (클로저 문제 방지)
   const currentSessionIdRef = useRef<number | null>(null);
 
   const guideId = (location.state as { guide_id?: number })?.guide_id ?? null;
+  const activeGuideId = guideId ?? defaultGuideId;
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('q'); // searchParams 대신
@@ -52,6 +57,18 @@ export default function Chat() {
       .then(res => setSessions(res.data))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (guideId) return;
+
+    apiClient.get('/api/v1/analysis/history')
+      .then((res) => {
+        const histories: GuideHistory[] = Array.isArray(res.data) ? res.data : [];
+        const latestCompleted = histories.find((history) => history.status === 'completed');
+        setDefaultGuideId(latestCompleted?.guide_result_id ?? null);
+      })
+      .catch(() => setDefaultGuideId(null));
+  }, [guideId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -127,7 +144,7 @@ export default function Chat() {
           body: JSON.stringify({
             message: text,
             session_id: currentSessionIdRef.current,
-            guide_id: guideId,
+            guide_id: activeGuideId,
           }),
         }
       );
@@ -190,8 +207,9 @@ export default function Chat() {
                 return [{
                   session_id: sid,
                   title: '새 대화',
-                  context_type: guideId ? 'guide' : 'general',
+                  context_type: activeGuideId ? 'guide' : 'general',
                   session_status: 'ACTIVE',
+                  related_guide_id: activeGuideId,
                   started_at: new Date().toISOString(),
                 }, ...prev];
               }
@@ -305,7 +323,11 @@ export default function Chat() {
             <div>
               <h2 className="text-lg font-bold text-gray-800">🤖 AI 건강 상담</h2>
               <p className="text-xs text-gray-400">
-                {guideId ? `처방전 #${guideId} 기반 상담 중` : '건강에 관한 무엇이든 물어보세요'}
+                {guideId
+                  ? `처방전 #${guideId} 기반 상담 중`
+                  : activeGuideId
+                    ? `최근 완료 분석 #${activeGuideId} 기반 상담 중`
+                    : '건강에 관한 무엇이든 물어보세요'}
               </p>
             </div>
             {currentSessionId && (
@@ -326,7 +348,9 @@ export default function Chat() {
                 <div className="text-5xl mb-4">🤖</div>
                 <p className="text-gray-600 font-semibold text-lg mb-1">무엇이든 물어보세요</p>
                 <p className="text-gray-400 text-sm mb-8">
-                  건강, 약물, 재활, 생활습관 모두 상담 가능해요
+                  {activeGuideId
+                    ? '최근 분석 결과를 참고해서 약물, 재활, 생활습관을 함께 상담해요'
+                    : '건강, 약물, 재활, 생활습관 모두 상담 가능해요'}
                 </p>
                 <div className="grid grid-cols-2 gap-2 w-full max-w-md">
                   {quickQuestions.map(q => (
@@ -422,7 +446,18 @@ export default function Chat() {
               <textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
+                onCompositionStart={() => {
+                  isComposingRef.current = true;
+                }}
+                onCompositionEnd={(e) => {
+                  isComposingRef.current = false;
+                  setInput(e.currentTarget.value);
+                }}
                 onKeyDown={e => {
+                  if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) {
+                    return;
+                  }
+
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     void handleSend();
