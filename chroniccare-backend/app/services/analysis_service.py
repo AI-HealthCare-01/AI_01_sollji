@@ -2,13 +2,16 @@ import json
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import NoReturn
 from app.core.config import get_settings
 
-from openai import AsyncOpenAI, APITimeoutError, RateLimitError, APIConnectionError
+from openai import APITimeoutError, RateLimitError, APIConnectionError
 from fastapi import HTTPException
 import time
 import logging
+
+from app.services.openai_client import get_openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -339,8 +342,8 @@ SYSTEM_PROMPT = """
 
 
 class OpenAIAnalysisService(AnalysisServiceBase):
-    def __init__(self, api_key: str):
-        self.client = AsyncOpenAI(api_key=api_key)
+    def __init__(self):
+        self.client = get_openai_client()
 
     async def analyze_text(self, text: str, user_profile: str = "", current_symptom: str = "") -> AnalysisResult:
         start = time.time()
@@ -428,4 +431,9 @@ def get_analysis_service() -> AnalysisServiceBase:
     use_mock = getattr(settings, "use_mock_analysis", False)
     if use_mock:
         return MockAnalysisService()
-    return OpenAIAnalysisService(api_key=settings.openai_api_key)
+    return _get_openai_analysis_service()
+
+
+@lru_cache()
+def _get_openai_analysis_service() -> AnalysisServiceBase:
+    return OpenAIAnalysisService()

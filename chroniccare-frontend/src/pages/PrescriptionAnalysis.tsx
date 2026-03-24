@@ -266,7 +266,8 @@ function formatApiDetail(detail: unknown): string | null {
 }
 
 const ANALYSIS_POLL_INTERVAL_MS = 3000;
-const ANALYSIS_MAX_ATTEMPTS = 40;
+const ANALYSIS_SLOW_ANALYSIS_THRESHOLD = 40;
+const ANALYSIS_MAX_ATTEMPTS = 60;
 
 function SeverityBadge({ severity }: { severity: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -372,6 +373,7 @@ export default function PrescriptionAnalysis() {
     clearPolling();
     activeGuideResultIdRef.current = id;
     let attempts = 0;
+    let slowAnalysisNotified = false;
 
     pollingIntervalRef.current = window.setInterval(async () => {
       if (activeGuideResultIdRef.current !== id) {
@@ -381,9 +383,12 @@ export default function PrescriptionAnalysis() {
 
       attempts++;
       if (attempts === 10) {
-        setProcessingMessage('외부 OCR/AI 서버와 연결 중이에요. 첫 분석은 조금 더 걸릴 수 있어요.');
+        setProcessingMessage('처방전 정보를 확인하고 있어요. 조금만 기다려주세요.');
       } else if (attempts === 25) {
-        setProcessingMessage('분석이 길어지고 있어요. 결과를 확인하는 중이니 조금만 더 기다려주세요.');
+        setProcessingMessage('분석이 길어지고 있어요. 결과를 정리하고 있으니 조금만 더 기다려주세요.');
+      } else if (attempts >= ANALYSIS_SLOW_ANALYSIS_THRESHOLD && !slowAnalysisNotified) {
+        slowAnalysisNotified = true;
+        setProcessingMessage('평소보다 시간이 더 걸리고 있어요. 결과가 준비되는 대로 바로 보여드릴게요.');
       }
 
       try {
@@ -410,7 +415,7 @@ export default function PrescriptionAnalysis() {
 
         if (attempts >= ANALYSIS_MAX_ATTEMPTS) {
           clearPolling();
-          setError('분석이 예상보다 오래 걸리고 있어요. 잠시 후 다시 시도하거나, 대시보드에서 분석 이력을 확인해주세요.');
+          setError('분석이 평소보다 오래 걸리고 있어요. 잠시 후 다시 시도해주세요.');
           setStep('failed');
         }
       } catch {
@@ -603,8 +608,7 @@ export default function PrescriptionAnalysis() {
               <div className="text-6xl mb-4 animate-bounce">🔍</div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">AI가 분석 중이에요</h2>
               <p className="text-lg text-gray-500 mb-6">
-                {processingMessage}<br />
-                보통 30초~1분, 첫 분석은 최대 2분 정도 걸릴 수 있어요.
+                {processingMessage}
               </p>
               {ocrText && (
                 <div className="bg-gray-50 rounded-xl p-4 text-left mt-4">

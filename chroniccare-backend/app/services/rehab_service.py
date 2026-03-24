@@ -2,8 +2,10 @@
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from functools import lru_cache
 
-from openai import AsyncOpenAI
+from app.core.config import get_settings
+from app.services.openai_client import get_openai_client
 
 
 @dataclass
@@ -245,8 +247,8 @@ REHAB_SYSTEM_PROMPT = """
 
 
 class OpenAIRehabService(RehabServiceBase):
-    def __init__(self, api_key: str):
-        self.client = AsyncOpenAI(api_key=api_key)
+    def __init__(self):
+        self.client = get_openai_client()
 
     async def generate_rehab_plan(self, analysis_summary: str) -> RehabPlanResult:
         response = await self.client.chat.completions.create(
@@ -273,11 +275,15 @@ class OpenAIRehabService(RehabServiceBase):
 # Factory
 # ─────────────────────────────────────────
 def get_rehab_service() -> RehabServiceBase:
-    from app.core.config import get_settings
     settings = get_settings()
 
     use_mock = getattr(settings, "use_mock_rehab", False)
     if use_mock:
         return MockRehabService()
 
-    return OpenAIRehabService(api_key=settings.openai_api_key)
+    return _get_openai_rehab_service()
+
+
+@lru_cache()
+def _get_openai_rehab_service() -> RehabServiceBase:
+    return OpenAIRehabService()

@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -5,6 +6,7 @@ from contextlib import asynccontextmanager
 from app.core.config import get_settings
 from app.core.database import engine
 from app.routers import auth, documents, analysis, chat, rehab, profile, feedback, admin
+from app.services.openai_client import warm_openai_connection
 from fastapi.security import HTTPBearer
 
 settings = get_settings()
@@ -12,6 +14,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f"🚀 AI Health API 시작 - 환경: {settings.app_env}")
+    asyncio.create_task(warm_openai_connection())
     yield
     await engine.dispose()
     print("👋 AI Health API 종료")

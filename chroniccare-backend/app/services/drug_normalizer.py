@@ -7,8 +7,9 @@
 
 import json
 import logging
-import re
-from openai import AsyncOpenAI, APITimeoutError, RateLimitError, APIConnectionError
+from openai import APITimeoutError, RateLimitError, APIConnectionError
+
+from app.services.openai_client import get_openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ async def normalize_drug_names(
     # 중복 제거
     unique_names = list(dict.fromkeys(drug_names))
 
-    client = AsyncOpenAI(api_key=api_key)
+    client = get_openai_client()
 
     try:
         response = await client.chat.completions.create(
