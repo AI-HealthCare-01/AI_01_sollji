@@ -81,7 +81,12 @@ async def add_medication(
     current_user: User = Depends(get_current_user)
 ):
     medication = await profile_service.create_medication(db, current_user.id, body.dict())
-    return {"id": medication.id, "medication_name": medication.medication_name}
+    return {
+        "id": medication.id,
+        "medication_name": medication.medication_name,
+        "dosage": medication.dosage,
+        "frequency": medication.frequency,
+    }
 
 
 @router.get("/medications", summary="복용약 조회")

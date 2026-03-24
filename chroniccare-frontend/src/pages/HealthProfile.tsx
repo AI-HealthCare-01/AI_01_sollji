@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'; // ← useRef 추가
+import { useState, useEffect, useRef } from 'react';
 import { profileApi } from '../api/profileApi';
 import AppLayout from '../components/layout/AppLayout';
 
@@ -17,20 +17,26 @@ const SMOKING_OPTIONS  = ['비흡연', '과거흡연', '가끔', '매일'];
 const ALCOHOL_OPTIONS  = ['안마심', '월 1~2회', '주 1~2회', '거의 매일'];
 const EXERCISE_OPTIONS = ['안함', '주 1~2회', '주 3~4회', '매일'];
 
-// ✅ 추가: 자주 쓰는 약 목록
-const COMMON_MEDICATIONS = [
-  '타이레놀', '아스피린', '이부프로펜', '나프록센',
-  '메트포르민', '글리메피리드', '인슐린',
-  '암로디핀', '로사르탄', '리시노프릴', '발사르탄', '텔미사르탄',
-  '아토르바스타틴', '로수바스타틴', '심바스타틴',
-  '오메프라졸', '판토프라졸', '에소메프라졸', '라베프라졸',
-  '세티리진', '로라타딘', '펙소페나딘',
-  '레보티록신', '메티마졸',
-  '알프라졸람', '로라제팜', '클로나제팜',
-  '아목시실린', '세파클러', '독시사이클린', '아지트로마이신',
-  '프레드니솔론', '덱사메타손',
-  '글루코사민', '칼슘', '비타민D', '오메가3', '엽산',
-];
+function normalizeMedicationItem(value: unknown): Medication | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const item = value as Record<string, unknown>;
+  const id = Number(item.id);
+  const medicationName = typeof item.medication_name === 'string' ? item.medication_name : '';
+  const dosage = typeof item.dosage === 'string' ? item.dosage : '';
+  const frequency = typeof item.frequency === 'number' ? item.frequency : undefined;
+
+  if (!Number.isFinite(id) || !medicationName.trim()) {
+    return null;
+  }
+
+  return {
+    id,
+    medication_name: medicationName,
+    dosage,
+    frequency,
+  };
+}
 
 export default function HealthProfile() {
 
@@ -51,25 +57,9 @@ export default function HealthProfile() {
   const [hEdit, setHEdit] = useState<HealthData>({});
 
   // ─── 새 항목 입력값 ───────────────────────────────────────
-  const [newCondition,  setNewCondition]  = useState('');
-  const [newMedication, setNewMedication] = useState({ name: '', dosage: '' });
-  const [newAllergy,    setNewAllergy]    = useState('');
-
-  // ✅ 추가: 자동완성 드롭다운 표시 여부
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const medicationRef = useRef<HTMLDivElement>(null);
-  const medicationComposeRef = useRef(false);
-
-  // ✅ 추가: 외부 클릭 시 드롭다운 닫기
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (medicationRef.current && !medicationRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const [newCondition, setNewCondition] = useState('');
+  const [newMedication, setNewMedication] = useState('');
+  const [newAllergy, setNewAllergy] = useState('');
 
   // ─── 데이터 로드 ─────────────────────────────────────────
   useEffect(() => {
@@ -79,7 +69,13 @@ export default function HealthProfile() {
         setHealth(d.health_profile || {});
         setHEdit(d.health_profile || {});
         setConditions(d.conditions || []);
-        setMedications(d.medications || []);
+        setMedications(
+          Array.isArray(d.medications)
+            ? d.medications
+                .map(normalizeMedicationItem)
+                .filter((item: Medication | null): item is Medication => item !== null)
+            : []
+        );
         setAllergies(d.allergies || []);
       })
       .catch(err => {
@@ -125,25 +121,33 @@ export default function HealthProfile() {
 
   // ─── 핸들러: 복용약 추가 / 삭제 ──────────────────────────
   const handleAddMedication = async () => {
-    const medicationName = newMedication.name.trim();
+    const medicationName = newMedication.trim();
     if (!medicationName) return;
-    const dosage = newMedication.dosage.trim();
     if (medications.some(m =>
-      m.medication_name.trim().toLowerCase() === medicationName.toLowerCase() &&
-      (m.dosage ?? '').trim().toLowerCase() === dosage.toLowerCase()
+      (m.medication_name ?? '').trim().toLowerCase() === medicationName.toLowerCase()
     )) {
-      setNewMedication({ name: '', dosage: '' });
-      setShowSuggestions(false);
+      setNewMedication('');
       return;
     }
     try {
       const res = await profileApi.addMedication({
         medication_name: medicationName,
-        dosage: dosage || undefined,
       });
-      setMedications(prev => [...prev, res?.data ?? res]);
-      setNewMedication({ name: '', dosage: '' });
-      setShowSuggestions(false);
+      const addedMedication = normalizeMedicationItem(res?.data ?? res);
+      if (addedMedication) {
+        setMedications(prev => [...prev, addedMedication]);
+      } else {
+        const profile = await profileApi.getFullProfile();
+        const profileData = profile?.data ?? profile ?? {};
+        setMedications(
+          Array.isArray(profileData.medications)
+            ? profileData.medications
+                .map(normalizeMedicationItem)
+                .filter((item: Medication | null): item is Medication => item !== null)
+            : []
+        );
+      }
+      setNewMedication('');
     } catch (e) { console.error(e); }
   };
   const handleDeleteMedication = async (id: number) => {
@@ -173,13 +177,6 @@ export default function HealthProfile() {
       setAllergies(prev => prev.filter(a => a.id !== id));
     } catch (e) { console.error(e); }
   };
-
-  // ✅ 추가: 입력값 기반 필터링된 약 목록
-  const filteredMeds = newMedication.name.trim()
-    ? COMMON_MEDICATIONS.filter(m =>
-        m.toLowerCase().includes(newMedication.name.toLowerCase())
-      ).slice(0, 6) // 최대 6개만 표시
-    : COMMON_MEDICATIONS.slice(0, 6); // 빈 칸이면 상위 6개 표시
 
   // ─── 렌더 ────────────────────────────────────────────────
   return (
@@ -289,98 +286,12 @@ export default function HealthProfile() {
               onToggleEdit={() => setEditingMedication(p => !p)}
               onDelete={handleDeleteMedication}
               addSlot={
-                <div className="space-y-2" ref={medicationRef}>
-
-                  {/* 약 이름 — 자동완성 콤보박스 */}
-                  <div className="relative">
-                    <input
-                      value={newMedication.name}
-                      onChange={e => {
-                        setNewMedication(p => ({ ...p, name: e.target.value }));
-                        setShowSuggestions(true);
-                      }}
-                      onKeyDown={e => {
-                        if (e.key !== 'Enter') return;
-                        e.preventDefault();
-                        if (medicationComposeRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
-                        handleAddMedication();
-                      }}
-                      onCompositionStart={() => {
-                        medicationComposeRef.current = true;
-                      }}
-                      onCompositionEnd={e => {
-                        medicationComposeRef.current = false;
-                        setNewMedication(p => ({ ...p, name: e.currentTarget.value }));
-                      }}
-                      onFocus={() => setShowSuggestions(true)}
-                      placeholder="약 이름 검색 또는 직접 입력"
-                      className={inputCls}
-                    />
-
-                    {/* 드롭다운 */}
-                    {showSuggestions && filteredMeds.length > 0 && (
-                      <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200
-                                     rounded-xl shadow-lg overflow-hidden">
-                        {filteredMeds.map(med => (
-                          <li
-                            key={med}
-                            onMouseDown={() => {
-                              setNewMedication(p => ({ ...p, name: med }));
-                              setShowSuggestions(false);
-                            }}
-                            className="px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50
-                                       hover:text-blue-600 cursor-pointer transition-colors"
-                          >
-                             {med}
-                          </li>
-                        ))}
-                        {/* 직접 입력한 값이 목록에 없으면 "직접 추가" 옵션 표시 */}
-                        {newMedication.name.trim() &&
-                          !COMMON_MEDICATIONS.some(
-                            m => m.toLowerCase() === newMedication.name.toLowerCase()
-                          ) && (
-                          <li
-                            onMouseDown={() => setShowSuggestions(false)}
-                            className="px-4 py-2.5 text-sm text-blue-500 font-medium
-                                       hover:bg-blue-50 cursor-pointer border-t border-gray-100
-                                       transition-colors"
-                          >
-                            ✏ "{newMedication.name}" 직접 입력
-                          </li>
-                        )}
-                      </ul>
-                    )}
-                  </div>
-
-                  {/* 용량 입력 */}
-                  <input
-                    value={newMedication.dosage}
-                    onChange={e => setNewMedication(p => ({ ...p, dosage: e.target.value }))}
-                    onKeyDown={e => {
-                      if (e.key !== 'Enter') return;
-                      e.preventDefault();
-                      if (medicationComposeRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
-                      handleAddMedication();
-                    }}
-                    onCompositionStart={() => {
-                      medicationComposeRef.current = true;
-                    }}
-                    onCompositionEnd={e => {
-                      medicationComposeRef.current = false;
-                      setNewMedication(p => ({ ...p, dosage: e.currentTarget.value }));
-                    }}
-                    placeholder="용량 (예: 500mg, 선택)"
-                    className={inputCls}
-                  />
-
-                  <button
-                    onClick={handleAddMedication}
-                    className="w-full bg-blue-600 text-white py-2 rounded-xl text-sm
-                               font-semibold hover:bg-blue-700 transition-all"
-                  >
-                    + 추가
-                  </button>
-                </div>
+                <AddRow
+                  placeholder="약 이름 직접 입력"
+                  value={newMedication}
+                  onChange={setNewMedication}
+                  onAdd={handleAddMedication}
+                />
               }
             />
 
