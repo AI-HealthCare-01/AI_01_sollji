@@ -17,6 +17,20 @@ function parseLocalDate(dateString: string): Date {
   return new Date(year, (month || 1) - 1, day || 1);
 }
 
+function formatDateInTimeZone(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function getPlanStartDateString(createdAt?: string | null): string {
+  if (!createdAt) return formatLocalDate(new Date());
+  return formatDateInTimeZone(new Date(createdAt), 'Asia/Seoul');
+}
+
 function getWeekMonthLabel(dates: string[]): string {
   const monthLabels = Array.from(new Set(
     dates.map((date) => `${parseLocalDate(date).getMonth() + 1}월`)
@@ -40,8 +54,8 @@ export default function Rehabilitation() {
 
   const getCurrentWeek = (plan: RehabPlanDetail): number => {
     if (!plan.created_at) return 1;
-    const start = new Date(plan.created_at);
-    const today = new Date();
+    const start = parseLocalDate(getPlanStartDateString(plan.created_at));
+    const today = parseLocalDate(todayString);
     const diffDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     return Math.min(Math.floor(diffDays / 7) + 1, plan.duration_weeks);
   };
@@ -146,8 +160,7 @@ export default function Rehabilitation() {
   const isToday = selectedDate === todayString;
 
   const getCalendarWeeks = (plan: RehabPlanDetail) => {
-    const start = plan.created_at ? new Date(plan.created_at) : new Date();
-    start.setHours(0, 0, 0, 0);
+    const start = parseLocalDate(getPlanStartDateString(plan.created_at));
     const weeks: { week: number; days: { date: string; label: number }[] }[] = [];
     for (let w = 1; w <= plan.duration_weeks; w++) {
       const days = [];
