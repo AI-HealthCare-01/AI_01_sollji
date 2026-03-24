@@ -58,6 +58,7 @@ export default function HealthProfile() {
   // ✅ 추가: 자동완성 드롭다운 표시 여부
   const [showSuggestions, setShowSuggestions] = useState(false);
   const medicationRef = useRef<HTMLDivElement>(null);
+  const medicationComposeRef = useRef(false);
 
   // ✅ 추가: 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
@@ -103,9 +104,14 @@ export default function HealthProfile() {
 
   // ─── 핸들러: 기저질환 추가 / 삭제 ────────────────────────
   const handleAddCondition = async () => {
-    if (!newCondition.trim()) return;
+    const conditionName = newCondition.trim();
+    if (!conditionName) return;
+    if (conditions.some(c => c.condition_type.trim().toLowerCase() === conditionName.toLowerCase())) {
+      setNewCondition('');
+      return;
+    }
     try {
-      const res = await profileApi.addCondition({ condition_type: newCondition });
+      const res = await profileApi.addCondition({ condition_type: conditionName });
       setConditions(prev => [...prev, res?.data ?? res]);
       setNewCondition('');
     } catch (e) { console.error(e); }
@@ -119,11 +125,21 @@ export default function HealthProfile() {
 
   // ─── 핸들러: 복용약 추가 / 삭제 ──────────────────────────
   const handleAddMedication = async () => {
-    if (!newMedication.name.trim()) return;
+    const medicationName = newMedication.name.trim();
+    if (!medicationName) return;
+    const dosage = newMedication.dosage.trim();
+    if (medications.some(m =>
+      m.medication_name.trim().toLowerCase() === medicationName.toLowerCase() &&
+      (m.dosage ?? '').trim().toLowerCase() === dosage.toLowerCase()
+    )) {
+      setNewMedication({ name: '', dosage: '' });
+      setShowSuggestions(false);
+      return;
+    }
     try {
       const res = await profileApi.addMedication({
-        medication_name: newMedication.name,
-        dosage: newMedication.dosage || undefined,
+        medication_name: medicationName,
+        dosage: dosage || undefined,
       });
       setMedications(prev => [...prev, res?.data ?? res]);
       setNewMedication({ name: '', dosage: '' });
@@ -139,9 +155,14 @@ export default function HealthProfile() {
 
   // ─── 핸들러: 알레르기 추가 / 삭제 ────────────────────────
   const handleAddAllergy = async () => {
-    if (!newAllergy.trim()) return;
+    const allergyName = newAllergy.trim();
+    if (!allergyName) return;
+    if (allergies.some(a => a.allergen_name.trim().toLowerCase() === allergyName.toLowerCase())) {
+      setNewAllergy('');
+      return;
+    }
     try {
-      const res = await profileApi.addAllergy({ allergen_name: newAllergy });
+      const res = await profileApi.addAllergy({ allergen_name: allergyName });
       setAllergies(prev => [...prev, res?.data ?? res]);
       setNewAllergy('');
     } catch (e) { console.error(e); }
@@ -278,6 +299,19 @@ export default function HealthProfile() {
                         setNewMedication(p => ({ ...p, name: e.target.value }));
                         setShowSuggestions(true);
                       }}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();
+                        if (medicationComposeRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+                        handleAddMedication();
+                      }}
+                      onCompositionStart={() => {
+                        medicationComposeRef.current = true;
+                      }}
+                      onCompositionEnd={e => {
+                        medicationComposeRef.current = false;
+                        setNewMedication(p => ({ ...p, name: e.currentTarget.value }));
+                      }}
                       onFocus={() => setShowSuggestions(true)}
                       placeholder="약 이름 검색 또는 직접 입력"
                       className={inputCls}
@@ -322,6 +356,19 @@ export default function HealthProfile() {
                   <input
                     value={newMedication.dosage}
                     onChange={e => setNewMedication(p => ({ ...p, dosage: e.target.value }))}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter') return;
+                      e.preventDefault();
+                      if (medicationComposeRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+                      handleAddMedication();
+                    }}
+                    onCompositionStart={() => {
+                      medicationComposeRef.current = true;
+                    }}
+                    onCompositionEnd={e => {
+                      medicationComposeRef.current = false;
+                      setNewMedication(p => ({ ...p, dosage: e.currentTarget.value }));
+                    }}
                     placeholder="용량 (예: 500mg, 선택)"
                     className={inputCls}
                   />
@@ -452,11 +499,25 @@ function AddRow({ placeholder, value, onChange, onAdd }: {
   placeholder: string; value: string;
   onChange: (v: string) => void; onAdd: () => void;
 }) {
+  const isComposingRef = useRef(false);
+
   return (
     <div className="flex gap-2">
       <input value={value} onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        onKeyDown={e => e.key === 'Enter' && onAdd()}
+        onCompositionStart={() => {
+          isComposingRef.current = true;
+        }}
+        onCompositionEnd={e => {
+          isComposingRef.current = false;
+          onChange(e.currentTarget.value);
+        }}
+        onKeyDown={e => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+          onAdd();
+        }}
         className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm
                    focus:outline-none focus:ring-2 focus:ring-blue-300" />
       <button onClick={onAdd}

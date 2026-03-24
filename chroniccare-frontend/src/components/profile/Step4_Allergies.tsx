@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { profileApi } from '../../api/profileApi';
 
 interface Props {
@@ -29,6 +29,7 @@ export default function Step4_Allergies({ onNext, onBack }: Props) {
   const [customInput, setCustomInput] = useState('');
   const [customList, setCustomList] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const isComposingRef = useRef(false);
 
   const toggleAllergy = (name: string, type: string) => {
     setSelected(prev =>
@@ -39,8 +40,13 @@ export default function Step4_Allergies({ onNext, onBack }: Props) {
   };
 
   const addCustom = () => {
-    if (!customInput.trim()) return;
-    setCustomList(prev => [...prev, customInput.trim()]);
+    const value = customInput.trim();
+    if (!value) return;
+    if (customList.some(item => item.toLowerCase() === value.toLowerCase())) {
+      setCustomInput('');
+      return;
+    }
+    setCustomList(prev => [...prev, value]);
     setCustomInput('');
   };
 
@@ -116,13 +122,18 @@ export default function Step4_Allergies({ onNext, onBack }: Props) {
             type="text"
             value={customInput}
             onChange={e => setCustomInput(e.target.value)}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={e => {
+              isComposingRef.current = false;
+              setCustomInput(e.currentTarget.value);
+            }}
             onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                // 한글 IME 조합 중 엔터 방지
-                if (e.nativeEvent.isComposing) return
-                addCustom()
-              }
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+              addCustom();
             }}
             placeholder="알레르기 항목 입력"
             className="flex-1 border border-gray-300 rounded-xl px-4 py-3

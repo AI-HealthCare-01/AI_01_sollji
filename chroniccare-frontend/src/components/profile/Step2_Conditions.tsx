@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { profileApi } from '../../api/profileApi';
 
 interface Props {
@@ -21,6 +21,7 @@ export default function Step2_Conditions({ onNext, onBack }: Props) {
   const [customList, setCustomList] = useState<string[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const isComposingRef = useRef(false);
 
   const toggleCondition = (condition: string) => {
     setSelected(prev =>
@@ -31,8 +32,13 @@ export default function Step2_Conditions({ onNext, onBack }: Props) {
   };
 
   const addCustom = () => {
-    if (!customInput.trim()) return;
-    setCustomList(prev => [...prev, customInput.trim()]);
+    const value = customInput.trim();
+    if (!value) return;
+    if (customList.some(item => item.toLowerCase() === value.toLowerCase())) {
+      setCustomInput('');
+      return;
+    }
+    setCustomList(prev => [...prev, value]);
     setCustomInput('');
   };
 
@@ -93,7 +99,19 @@ export default function Step2_Conditions({ onNext, onBack }: Props) {
             type="text"
             value={customInput}
             onChange={e => setCustomInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addCustom()}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={e => {
+              isComposingRef.current = false;
+              setCustomInput(e.currentTarget.value);
+            }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+              addCustom();
+            }}
             placeholder="질환명 입력 후 Enter 또는 추가 버튼"
             className="flex-1 border border-gray-300 rounded-xl px-4 py-3
                        focus:outline-none focus:ring-2 focus:ring-blue-500"

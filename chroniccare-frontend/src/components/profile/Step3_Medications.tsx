@@ -26,10 +26,20 @@ export default function Step3_Medications({ onNext, onBack }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isComposingRef = useRef(false);
 
   const addMedication = () => {
     const name = searchInput.trim() || manualName.trim();
     if (!name) return;
+    if (medications.some(m =>
+      m.name.trim().toLowerCase() === name.toLowerCase() &&
+      m.dosage.trim().toLowerCase() === (manualDosage || '1정').trim().toLowerCase()
+    )) {
+      setSearchInput('');
+      setManualName('');
+      setManualDosage('');
+      return;
+    }
     setMedications(prev => [...prev, {
       name,
       dosage: manualDosage || '1정',
@@ -113,13 +123,18 @@ export default function Step3_Medications({ onNext, onBack }: Props) {
             type="text"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={e => {
+              isComposingRef.current = false;
+              setSearchInput(e.currentTarget.value);
+            }}
             onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                // 한글 IME 조합 중 엔터 방지
-                if (e.nativeEvent.isComposing) return
-                addMedication()
-              }
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+              addMedication();
             }}
             placeholder="🔍 약 이름 검색 또는 직접 입력"
             className="flex-1 border border-gray-300 rounded-xl px-4 py-3
@@ -135,6 +150,19 @@ export default function Step3_Medications({ onNext, onBack }: Props) {
               type="text"
               value={manualDosage}
               onChange={e => setManualDosage(e.target.value)}
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={e => {
+                isComposingRef.current = false;
+                setManualDosage(e.currentTarget.value);
+              }}
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+                addMedication();
+              }}
               placeholder="예: 1정, 500mg"
               className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm
                          focus:outline-none focus:ring-2 focus:ring-blue-500"
