@@ -1,17 +1,26 @@
+from sqlalchemy import select
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select
-from pydantic import BaseModel, EmailStr
+
 from app.core.database import get_db
-from app.models.user import User
 from app.core.security import create_access_token
 from app.core.security import get_current_user
+from app.models.analysis import GuideResult, MedicationSchedule
+from app.models.chat import ChatSession, Feedback, Notification
+from app.models.document import Document, OCRResult
+from app.models.rehab import ExerciseCompletion, RehabPlan
+from app.models.user import Allergy, ChronicCondition, HealthProfile, Medication, User
 from datetime import datetime
 from typing import Optional
 import bcrypt
 
 router = APIRouter()
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 # bcrypt 직접 사용 (passlib 제거)
@@ -131,9 +140,38 @@ async def delete_account(
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    # SQLAlchemy 모델(User)에 cascade="all, delete-orphan"이 설정되어 있다면
-    # 유저 삭제 시 프로필, 처방전, 재활 기록 등도 자동으로 함께 깔끔하게 삭제됩니다.
+    documents_result = await db.execute(
+        select(Document.id, Document.file_path).where(Document.user_id == current_user.id)
+    )
+    documents = documents_result.all()
+    document_ids = [row.id for row in documents]
+
+    await db.execute(delete(ExerciseCompletion).where(ExerciseCompletion.user_id == current_user.id))
+    await db.execute(delete(RehabPlan).where(RehabPlan.user_id == current_user.id))
+    await db.execute(delete(ChatSession).where(ChatSession.user_id == current_user.id))
+    await db.execute(delete(MedicationSchedule).where(MedicationSchedule.user_id == current_user.id))
+    await db.execute(delete(GuideResult).where(GuideResult.user_id == current_user.id))
+    if document_ids:
+        await db.execute(delete(OCRResult).where(OCRResult.document_id.in_(document_ids)))
+    await db.execute(delete(Notification).where(Notification.user_id == current_user.id))
+    await db.execute(delete(Feedback).where(Feedback.user_id == current_user.id))
+    await db.execute(delete(Document).where(Document.user_id == current_user.id))
+    await db.execute(delete(Medication).where(Medication.user_id == current_user.id))
+    await db.execute(delete(Allergy).where(Allergy.user_id == current_user.id))
+    await db.execute(delete(ChronicCondition).where(ChronicCondition.user_id == current_user.id))
+    await db.execute(delete(HealthProfile).where(HealthProfile.user_id == current_user.id))
     await db.delete(current_user)
     await db.commit()
+
+    for _, file_path in documents:
+        if not file_path:
+            continue
+        try:
+            resolved_path = Path(file_path)
+            if not resolved_path.is_absolute():
+                resolved_path = PROJECT_ROOT / resolved_path
+            resolved_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     return {"message": "회원 탈퇴가 완료되었습니다."}
